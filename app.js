@@ -483,6 +483,7 @@ class TrimBoxManipulator {
             const userData = this.activeHandle.userData;
             console.log('ハンドル操作開始:', userData);
             this.initialBoxBounds = new THREE.Box3().setFromObject(this.trimBox);
+            this.initialBoxPosition = this.trimBox.position.clone(); // 箱移動用の初期位置を保存
             
             if (userData.type === 'corner') {
                 this.initialCornerPositions = this.getCornerPositions();
@@ -513,8 +514,52 @@ class TrimBoxManipulator {
             if (this.trimBox) {
                 const boxIntersects = this.raycaster.intersectObject(this.trimBox);
                 if (boxIntersects.length > 0) {
-                    console.log('箱の面をクリック（ハンドル検出後）');
-                    this.selectFaceFromIntersection(boxIntersects[0]);
+                    console.log('箱の面をクリック');
+                    
+                    // 既に同じ面が選択されている場合は箱移動モードを開始
+                    const intersection = boxIntersects[0];
+                    const normal = intersection.face.normal.clone();
+                    normal.transformDirection(this.trimBox.matrixWorld);
+                    
+                    // 最も近い軸方向を見つける
+                    const absNormal = new THREE.Vector3(Math.abs(normal.x), Math.abs(normal.y), Math.abs(normal.z));
+                    let axis, direction;
+                    
+                    if (absNormal.x > absNormal.y && absNormal.x > absNormal.z) {
+                        axis = 'x';
+                        direction = normal.x > 0 ? 1 : -1;
+                    } else if (absNormal.y > absNormal.z) {
+                        axis = 'y';
+                        direction = normal.y > 0 ? 1 : -1;
+                    } else {
+                        axis = 'z';
+                        direction = normal.z > 0 ? 1 : -1;
+                    }
+                    
+                    // 既に同じ面が選択されているかチェック
+                    const isAlreadySelected = this.selectedFace && 
+                        this.selectedFace.userData.axis === axis && 
+                        this.selectedFace.userData.direction === direction;
+                    
+                    if (isAlreadySelected) {
+                        console.log('同じ面が既に選択済み - 箱移動モード開始');
+                        // 箱移動モードを開始
+                        this.isDragging = true;
+                        this.activeHandle = { userData: { type: 'boxMove' } };
+                        this.initialMousePos.copy(this.mouse);
+                        this.initialBoxPosition = this.trimBox.position.clone();
+                        this.renderer.domElement.style.cursor = 'grabbing';
+                        
+                        // 箱移動時の色変更（青色）
+                        this.setBoxMoveColors(true);
+                        
+                        this.disableOrbitControls();
+                        this.showTrimmingInfo();
+                    } else {
+                        console.log('新しい面をクリック - 面ハンドル表示');
+                        // 新しい面を選択して面ハンドルを表示
+                        this.selectFaceFromIntersection(intersection);
+                    }
                     return;
                 }
             }
@@ -545,7 +590,7 @@ class TrimBoxManipulator {
             direction = normal.z > 0 ? 1 : -1;
         }
         
-        // 対応する面ハンドルを選択
+        // 対応する面ハンドルを選択（面拡縮用に表示）
         const faceHandle = this.faceHandles.find(handle => 
             handle.userData.axis === axis && handle.userData.direction === direction
         );
@@ -634,7 +679,12 @@ class TrimBoxManipulator {
 
     onMouseUp(event) {
         if (this.activeHandle) {
-            this.resetHandleColor(this.activeHandle);
+            // 箱移動モードの場合は色をリセット
+            if (this.activeHandle.userData.type === 'boxMove') {
+                this.setBoxMoveColors(false);
+            } else {
+                this.resetHandleColor(this.activeHandle);
+            }
             this.activeHandle = null;
         }
         this.isDragging = false;
@@ -643,6 +693,27 @@ class TrimBoxManipulator {
         // ハンドル操作終了時にカメラコントロールを再有効化
         this.enableOrbitControls();
         this.hideTrimmingInfo();
+    }
+
+
+    setBoxMoveColors(isMoving) {
+        if (!this.trimBox || !this.boxHelper) return;
+        
+        const color = isMoving ? 0x0066ff : this.boxColor; // 青色 または 元の色
+        const opacity = isMoving ? 0.3 : this.boxOpacity; // 移動時は少し濃く
+        
+        // 箱の面の色を変更
+        if (this.trimBox.material) {
+            this.trimBox.material.color.setHex(color);
+            this.trimBox.material.opacity = opacity;
+        }
+        
+        // 箱の辺（エッジライン）の色を変更
+        if (this.boxHelper.material) {
+            this.boxHelper.material.color.setHex(color);
+        }
+        
+        console.log('箱移動色変更:', { isMoving, color: color.toString(16) });
     }
 
     resetHandleColor(handle) {
@@ -694,6 +765,10 @@ class TrimBoxManipulator {
             case 'corner':
                 console.log('頂点操作実行:', userData);
                 this.updateCornerPosition(userData, deltaX, deltaY);
+                break;
+            case 'boxMove':
+                console.log('箱移動実行:', { deltaX, deltaY });
+                this.updateBoxPosition(deltaX, deltaY);
                 break;
             default:
                 console.warn('未知のハンドルタイプ:', userData);
@@ -1050,6 +1125,52 @@ class TrimBoxManipulator {
         });
     }
 
+    updateBoxPosition(deltaX, deltaY) {
+        // 箱全体の移動処理
+        const camera = this.camera;
+        const boxCenter = this.initialBoxPosition;
+        const distance = camera.position.distanceTo(boxCenter);
+        
+        // カメラの右方向と上方向ベクトル
+        const cameraRight = new THREE.Vector3();
+        camera.getWorldDirection(cameraRight);
+        cameraRight.cross(camera.up).normalize();
+        const cameraUp = camera.up.clone();
+        
+        // スクリーン座標からワールド座標への変換倍率
+        const fov = camera.fov * (Math.PI / 180);
+        const viewportHeight = 2 * Math.tan(fov / 2) * distance;
+        const viewportWidth = viewportHeight * camera.aspect;
+        
+        // マウス移動量をワールド座標での移動量に変換
+        const sensitivity = 0.15; // 箱移動の感度
+        const worldDeltaX = (deltaX * sensitivity) * viewportWidth;
+        const worldDeltaY = (deltaY * sensitivity) * viewportHeight;
+        
+        // 3D空間での移動ベクトルを計算
+        const worldMovement = new THREE.Vector3();
+        worldMovement.addScaledVector(cameraRight, worldDeltaX);
+        worldMovement.addScaledVector(cameraUp, worldDeltaY);
+        
+        // 新しい箱の位置を設定
+        const newPosition = this.initialBoxPosition.clone().add(worldMovement);
+        this.trimBox.position.copy(newPosition);
+        
+        // boxHelper（エッジライン）の位置も更新
+        if (this.boxHelper) {
+            this.boxHelper.position.copy(newPosition);
+        }
+        
+        // ハンドルの位置も更新
+        this.updateHandlePositions();
+        
+        console.log('箱移動:', { 
+            deltaX, deltaY,
+            worldDeltaX, worldDeltaY,
+            newPosition: newPosition.toArray()
+        });
+    }
+
     getBoundingBox() {
         return this.trimBox ? new THREE.Box3().setFromObject(this.trimBox) : null;
     }
@@ -1084,7 +1205,12 @@ class TrimBoxManipulator {
 
     cancelTrimming() {
         if (this.isDragging && this.activeHandle) {
-            this.resetHandleColor(this.activeHandle);
+            // 箱移動モードの場合は色をリセット
+            if (this.activeHandle.userData.type === 'boxMove') {
+                this.setBoxMoveColors(false);
+            } else {
+                this.resetHandleColor(this.activeHandle);
+            }
             this.activeHandle = null;
             this.isDragging = false;
             this.renderer.domElement.style.cursor = 'default';
