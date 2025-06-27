@@ -717,11 +717,11 @@ class TrimBoxManipulator {
         if (!handle || !handle.userData) return;
         
         const userData = handle.userData;
-        const hoverColor = 0xffaa00; // オレンジ色
+        const hoverColor = 0xffff99; // 薄い黄色
         
         switch (userData.type) {
             case 'face':
-                // Groupの子要素の色をオレンジ色に変更
+                // Groupの子要素の色を薄い黄色に変更
                 handle.children.forEach(child => {
                     if (child.material) {
                         child.material.color.setHex(hoverColor);
