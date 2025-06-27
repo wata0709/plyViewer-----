@@ -21,6 +21,7 @@ class TrimBoxManipulator {
         this.isDragging = false;
         this.activeHandle = null;
         this.selectedFace = null; // 選択された面
+        this.hoveredHandle = null; // ホバー中のハンドル
         this.initialMousePos = new THREE.Vector2();
         this.initialBoxSize = new THREE.Vector3();
         this.initialBoxPos = new THREE.Vector3();
@@ -58,6 +59,7 @@ class TrimBoxManipulator {
         this.renderer.domElement.addEventListener('mousedown', (e) => this.onMouseDown(e));
         this.renderer.domElement.addEventListener('mousemove', (e) => this.onMouseMove(e));
         this.renderer.domElement.addEventListener('mouseup', (e) => this.onMouseUp(e));
+        this.renderer.domElement.addEventListener('mouseleave', (e) => this.onMouseLeave(e));
         
         // Escキーでトリミング操作をキャンセル
         document.addEventListener('keydown', (e) => {
@@ -632,11 +634,30 @@ class TrimBoxManipulator {
             );
             const intersects = this.raycaster.intersectObjects(targetHandles, true);
             
+            // ホバー処理
+            let newHoveredHandle = null;
             if (intersects.length > 0) {
+                // userDataを持つ親を探す（最大3階層まで遡る）
+                let targetObject = intersects[0].object;
+                let currentObject = targetObject;
+                for (let i = 0; i < 3; i++) {
+                    if (currentObject.userData && currentObject.userData.type) {
+                        newHoveredHandle = currentObject;
+                        break;
+                    }
+                    if (currentObject.parent && currentObject.parent !== this.scene) {
+                        currentObject = currentObject.parent;
+                    } else {
+                        break;
+                    }
+                }
                 this.renderer.domElement.style.cursor = 'grab';
             } else {
                 this.renderer.domElement.style.cursor = 'default';
             }
+            
+            // ホバー状態の変更処理
+            this.updateHoverState(newHoveredHandle);
             return;
         }
         
@@ -668,6 +689,88 @@ class TrimBoxManipulator {
         this.hideTrimmingInfo();
     }
 
+    onMouseLeave(event) {
+        // マウスが3Dビューエリア外に出た時、ホバー状態をリセット
+        if (this.hoveredHandle) {
+            this.resetHoverColor(this.hoveredHandle);
+            this.hoveredHandle = null;
+        }
+        this.renderer.domElement.style.cursor = 'default';
+    }
+
+
+    updateHoverState(newHoveredHandle) {
+        // 前にホバーしていたハンドルの色をリセット
+        if (this.hoveredHandle && this.hoveredHandle !== newHoveredHandle) {
+            this.resetHoverColor(this.hoveredHandle);
+        }
+        
+        // 新しいハンドルにホバー色を適用
+        if (newHoveredHandle && newHoveredHandle !== this.hoveredHandle) {
+            this.setHoverColor(newHoveredHandle);
+        }
+        
+        this.hoveredHandle = newHoveredHandle;
+    }
+
+    setHoverColor(handle) {
+        if (!handle || !handle.userData) return;
+        
+        const userData = handle.userData;
+        const hoverColor = 0xffaa00; // オレンジ色
+        
+        switch (userData.type) {
+            case 'face':
+                // Groupの子要素の色をオレンジ色に変更
+                handle.children.forEach(child => {
+                    if (child.material) {
+                        child.material.color.setHex(hoverColor);
+                    }
+                });
+                break;
+            case 'edge':
+                if (handle.material) {
+                    handle.material.color.setHex(hoverColor);
+                }
+                break;
+            case 'corner':
+                if (handle.material) {
+                    handle.material.color.setHex(hoverColor);
+                }
+                break;
+        }
+    }
+
+    resetHoverColor(handle) {
+        if (!handle || !handle.userData) return;
+        
+        // アクティブなハンドルの場合は黄色を維持
+        if (this.activeHandle === handle) return;
+        
+        const userData = handle.userData;
+        const normalColor = 0xffffff; // 白色
+        
+        switch (userData.type) {
+            case 'face':
+                // Groupの子要素の色を白色に戻す
+                handle.children.forEach(child => {
+                    if (child.material) {
+                        child.material.color.setHex(normalColor);
+                    }
+                });
+                break;
+            case 'edge':
+                if (handle.material) {
+                    handle.material.color.setHex(normalColor);
+                }
+                break;
+            case 'corner':
+                if (handle.material) {
+                    handle.material.color.setHex(normalColor);
+                }
+                break;
+        }
+    }
 
     setBoxMoveColors(isMoving) {
         if (!this.trimBox || !this.boxHelper) return;
