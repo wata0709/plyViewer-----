@@ -514,52 +514,25 @@ class TrimBoxManipulator {
             if (this.trimBox) {
                 const boxIntersects = this.raycaster.intersectObject(this.trimBox);
                 if (boxIntersects.length > 0) {
-                    console.log('箱の面をクリック');
+                    console.log('箱の面をクリック - 箱移動モード開始 + 面ハンドル表示');
                     
-                    // 既に同じ面が選択されている場合は箱移動モードを開始
                     const intersection = boxIntersects[0];
-                    const normal = intersection.face.normal.clone();
-                    normal.transformDirection(this.trimBox.matrixWorld);
                     
-                    // 最も近い軸方向を見つける
-                    const absNormal = new THREE.Vector3(Math.abs(normal.x), Math.abs(normal.y), Math.abs(normal.z));
-                    let axis, direction;
+                    // 面ハンドルを表示（触った面の矢印を表示）
+                    this.selectFaceFromIntersection(intersection);
                     
-                    if (absNormal.x > absNormal.y && absNormal.x > absNormal.z) {
-                        axis = 'x';
-                        direction = normal.x > 0 ? 1 : -1;
-                    } else if (absNormal.y > absNormal.z) {
-                        axis = 'y';
-                        direction = normal.y > 0 ? 1 : -1;
-                    } else {
-                        axis = 'z';
-                        direction = normal.z > 0 ? 1 : -1;
-                    }
+                    // 箱移動モードを開始
+                    this.isDragging = true;
+                    this.activeHandle = { userData: { type: 'boxMove' } };
+                    this.initialMousePos.copy(this.mouse);
+                    this.initialBoxPosition = this.trimBox.position.clone();
+                    this.renderer.domElement.style.cursor = 'grabbing';
                     
-                    // 既に同じ面が選択されているかチェック
-                    const isAlreadySelected = this.selectedFace && 
-                        this.selectedFace.userData.axis === axis && 
-                        this.selectedFace.userData.direction === direction;
+                    // 箱移動時の色変更（青色）
+                    this.setBoxMoveColors(true);
                     
-                    if (isAlreadySelected) {
-                        console.log('同じ面が既に選択済み - 箱移動モード開始');
-                        // 箱移動モードを開始
-                        this.isDragging = true;
-                        this.activeHandle = { userData: { type: 'boxMove' } };
-                        this.initialMousePos.copy(this.mouse);
-                        this.initialBoxPosition = this.trimBox.position.clone();
-                        this.renderer.domElement.style.cursor = 'grabbing';
-                        
-                        // 箱移動時の色変更（青色）
-                        this.setBoxMoveColors(true);
-                        
-                        this.disableOrbitControls();
-                        this.showTrimmingInfo();
-                    } else {
-                        console.log('新しい面をクリック - 面ハンドル表示');
-                        // 新しい面を選択して面ハンドルを表示
-                        this.selectFaceFromIntersection(intersection);
-                    }
+                    this.disableOrbitControls();
+                    this.showTrimmingInfo();
                     return;
                 }
             }
