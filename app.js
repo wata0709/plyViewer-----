@@ -26,6 +26,12 @@ class TrimBoxManipulator {
         this.initialBoxSize = new THREE.Vector3();
         this.initialBoxPos = new THREE.Vector3();
         
+        // 長押し検出用の変数
+        this.longPressTimer = null;
+        this.longPressDuration = 800; // 800ms で長押し判定
+        this.isLongPressActive = false;
+        this.clickedFaceIntersection = null;
+        
         // 固定サイズ用の変数
         this.fixedBoxSize = 0;
         this.targetPosition = new THREE.Vector3();
@@ -503,25 +509,15 @@ class TrimBoxManipulator {
             if (this.trimBox) {
                 const boxIntersects = this.raycaster.intersectObject(this.trimBox);
                 if (boxIntersects.length > 0) {
-                    console.log('箱の面をクリック - 箱移動モード開始 + 面ハンドル表示');
+                    console.log('箱の面をクリック - 面ハンドル表示 + 長押し待機開始');
                     
                     const intersection = boxIntersects[0];
                     
                     // 面ハンドルを表示（触った面の矢印を表示）
                     this.selectFaceFromIntersection(intersection);
                     
-                    // 箱移動モードを開始
-                    this.isDragging = true;
-                    this.activeHandle = { userData: { type: 'boxMove' } };
-                    this.initialMousePos.copy(this.mouse);
-                    this.initialBoxPosition = this.trimBox.position.clone();
-                    this.renderer.domElement.style.cursor = 'grabbing';
-                    
-                    // 箱移動時の色変更（青色）
-                    this.setBoxMoveColors(true);
-                    
-                    this.disableOrbitControls();
-                    this.showTrimmingInfo();
+                    // 長押し検出を開始
+                    this.startLongPressDetection(intersection);
                     return;
                 }
             }
@@ -609,6 +605,11 @@ class TrimBoxManipulator {
     }
 
     onMouseMove(event) {
+        // マウス移動時に長押しタイマーをクリア（移動したら長押し判定をキャンセル）
+        if (this.longPressTimer && !this.isLongPressActive) {
+            this.clearLongPressTimer();
+        }
+        
         if (!this.isDragging || !this.activeHandle) {
             const rect = this.renderer.domElement.getBoundingClientRect();
             this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -659,6 +660,9 @@ class TrimBoxManipulator {
     }
 
     onMouseUp(event) {
+        // 長押しタイマーをクリア（マウスアップで長押し判定終了）
+        this.clearLongPressTimer();
+        
         if (this.activeHandle) {
             // 箱移動モードの場合は色をリセット
             if (this.activeHandle.userData.type === 'boxMove') {
@@ -669,6 +673,8 @@ class TrimBoxManipulator {
             this.activeHandle = null;
         }
         this.isDragging = false;
+        this.isLongPressActive = false;
+        this.clickedFaceIntersection = null;
         this.renderer.domElement.style.cursor = 'default';
         
         // ハンドル操作終了時にカメラコントロールを再有効化
@@ -757,6 +763,54 @@ class TrimBoxManipulator {
                 }
                 break;
         }
+    }
+
+    // 長押し検出開始
+    startLongPressDetection(intersection) {
+        // 既存のタイマーをクリア
+        this.clearLongPressTimer();
+        
+        // 長押し状態をリセット
+        this.isLongPressActive = false;
+        this.clickedFaceIntersection = intersection;
+        
+        // 長押しタイマーを開始
+        this.longPressTimer = setTimeout(() => {
+            console.log('長押し検出 - 箱移動モード開始');
+            this.activateBoxMoveMode();
+        }, this.longPressDuration);
+        
+        console.log('長押し検出タイマー開始:', this.longPressDuration + 'ms');
+    }
+
+    // 長押しタイマーをクリア
+    clearLongPressTimer() {
+        if (this.longPressTimer) {
+            clearTimeout(this.longPressTimer);
+            this.longPressTimer = null;
+            console.log('長押しタイマークリア');
+        }
+    }
+
+    // 箱移動モードを開始
+    activateBoxMoveMode() {
+        if (!this.clickedFaceIntersection) return;
+        
+        console.log('箱移動モード開始');
+        
+        // 箱移動モードを開始
+        this.isDragging = true;
+        this.isLongPressActive = true;
+        this.activeHandle = { userData: { type: 'boxMove' } };
+        this.initialMousePos.copy(this.mouse);
+        this.initialBoxPosition = this.trimBox.position.clone();
+        this.renderer.domElement.style.cursor = 'grabbing';
+        
+        // 箱移動時の色変更（青色）
+        this.setBoxMoveColors(true);
+        
+        this.disableOrbitControls();
+        this.showTrimmingInfo();
     }
 
     setBoxMoveColors(isMoving) {
