@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { PLYLoader } from 'three/addons/loaders/PLYLoader.js';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 
 class TrimBoxManipulator {
     constructor(scene, camera, renderer, controls, getCurrentModel) {
@@ -56,12 +57,60 @@ class TrimBoxManipulator {
         this.arrowShaftRadius = 1.0;  // 線の太さ（円柱の半径）
         this.arrowShaftHeight = 3.0;  // 線の長さ（円柱の高さ）
         
+        // OBJモデル用
+        this.customArrowModel = null; // カスタムOBJモデル
+        this.useCustomArrow = false;  // カスタム矢印を使用するかのフラグ
+        this.objLoader = new OBJLoader(); // OBJローダー
+        
         this.raycaster = new THREE.Raycaster();
         // Lineのレイキャスト判定を厳密にする
         this.raycaster.params.Line.threshold = 0.05; // デフォルト: 1
         this.mouse = new THREE.Vector2();
         
         this.setupEventListeners();
+        
+        // OBJファイルを読み込み
+        this.loadCustomArrowModel();
+    }
+
+    async loadCustomArrowModel() {
+        try {
+            const objModel = await new Promise((resolve, reject) => {
+                this.objLoader.load(
+                    'OBJ/アセット 1.obj',
+                    resolve,
+                    (progress) => console.log('OBJモデル読み込み進行:', progress),
+                    reject
+                );
+            });
+
+            // モデルの準備
+            if (objModel && objModel.children.length > 0) {
+                // 最初の子オブジェクトを使用
+                const modelMesh = objModel.children[0];
+                
+                // ジオメトリを取得
+                this.customArrowModel = modelMesh.geometry;
+                
+                // モデルのサイズを調整
+                this.customArrowModel.computeBoundingBox();
+                const boundingBox = this.customArrowModel.boundingBox;
+                const size = boundingBox.getSize(new THREE.Vector3());
+                
+                // サイズを適切にスケール（矢印として適切な大きさに）
+                const scale = 0.1 / Math.max(size.x, size.y, size.z);
+                this.customArrowModel.scale(scale, scale, scale);
+                
+                // 中央に配置
+                this.customArrowModel.center();
+                
+                this.useCustomArrow = true;
+                console.log('カスタム矢印モデル読み込み完了');
+            }
+        } catch (error) {
+            console.warn('カスタム矢印モデルの読み込みに失敗、デフォルト矢印を使用:', error);
+            this.useCustomArrow = false;
+        }
     }
 
     setupEventListeners() {
@@ -265,7 +314,25 @@ class TrimBoxManipulator {
     }
 
     createArrowGeometry() {
-        // 矢印形状：線部分（円柱）と先端（円錐）を組み合わせ
+        // カスタムOBJモデルが利用可能な場合はそれを使用
+        if (this.useCustomArrow && this.customArrowModel) {
+            const arrowGroup = new THREE.Group();
+            
+            // カスタムモデルのメッシュを作成
+            const customMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const customMesh = new THREE.Mesh(this.customArrowModel.clone(), customMaterial);
+            
+            // モデルの向きを調整（必要に応じて）
+            // OBJモデルのデフォルト向きがY軸上向きでない場合は回転
+            // customMesh.rotation.x = Math.PI / 2; // 必要に応じてコメントアウトを解除
+            
+            arrowGroup.add(customMesh);
+            
+            console.log('カスタムOBJ矢印を使用');
+            return arrowGroup;
+        }
+        
+        // デフォルトの矢印形状：線部分（円柱）と先端（円錐）を組み合わせ
         const arrowGroup = new THREE.Group();
         
         // 基本サイズ
@@ -298,6 +365,7 @@ class TrimBoxManipulator {
         arrowGroup.add(shaft);
         arrowGroup.add(tip);
         
+        console.log('デフォルト矢印を使用');
         return arrowGroup;
     }
 
@@ -1769,6 +1837,26 @@ class TrimBoxManipulator {
             });
         }
     }
+
+    // カスタム矢印の使用を切り替えるメソッド
+    setUseCustomArrow(useCustom) {
+        this.useCustomArrow = useCustom && this.customArrowModel !== null;
+        
+        // 矢印を再作成して変更を適用
+        this.updateArrowSizes();
+        
+        console.log('カスタム矢印使用設定変更:', { 
+            useCustomArrow: this.useCustomArrow,
+            hasCustomModel: this.customArrowModel !== null
+        });
+        
+        return this.useCustomArrow;
+    }
+
+    // カスタム矢印が利用可能かチェック
+    isCustomArrowAvailable() {
+        return this.customArrowModel !== null;
+    }
 }
 
 class RealtimePreview {
@@ -2851,6 +2939,15 @@ class PLYViewer {
             return this.trimBoxManipulator.getIndividualEdgeXRotation(handleIndex);
         }
         return 0;
+    }
+
+    // カスタム矢印の設定
+    setUseCustomArrow(useCustom) {
+        return this.trimBoxManipulator ? this.trimBoxManipulator.setUseCustomArrow(useCustom) : false;
+    }
+
+    isCustomArrowAvailable() {
+        return this.trimBoxManipulator ? this.trimBoxManipulator.isCustomArrowAvailable() : false;
     }
 
     resetCameraPosition() {
