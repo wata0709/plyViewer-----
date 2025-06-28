@@ -28,9 +28,12 @@ class TrimBoxManipulator {
         
         // 長押し検出用の変数
         this.longPressTimer = null;
-        this.longPressDuration = 200; // 500ms で長押し判定
+        this.longPressDuration = 200; // 200ms で長押し判定
         this.isLongPressActive = false;
         this.clickedFaceIntersection = null;
+        
+        // キー状態追跡
+        this.isCommandPressed = false;
         
         // 固定サイズ用の変数
         this.fixedBoxSize = 0;
@@ -67,7 +70,7 @@ class TrimBoxManipulator {
         this.renderer.domElement.addEventListener('mouseup', (e) => this.onMouseUp(e));
         this.renderer.domElement.addEventListener('mouseleave', (e) => this.onMouseLeave(e));
         
-        // Escキーでトリミング操作をキャンセル
+        // キーイベントリスナー
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 if (this.isDragging) {
@@ -75,6 +78,17 @@ class TrimBoxManipulator {
                 } else if (this.selectedFace) {
                     this.deselectFace();
                 }
+            }
+            // Commandキー（Mac）またはCtrlキー（Windows/Linux）の検出
+            if (e.metaKey || e.ctrlKey) {
+                this.isCommandPressed = true;
+            }
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            // Commandキー（Mac）またはCtrlキー（Windows/Linux）のリリース検出
+            if (!e.metaKey && !e.ctrlKey) {
+                this.isCommandPressed = false;
             }
         });
     }
@@ -1068,13 +1082,32 @@ class TrimBoxManipulator {
         
         // マウス移動量をワールド座標での移動量に変換（感度調整）
         const sensitivity = 0.15; // 感度調整係数（小さいほど動きが小さい）
-        const worldDeltaX = (deltaX * sensitivity) * viewportWidth;
-        const worldDeltaY = (deltaY * sensitivity) * viewportHeight;
         
         // 3D空間での移動ベクトルを計算
         const worldMovement = new THREE.Vector3();
-        worldMovement.addScaledVector(cameraRight, worldDeltaX);
-        worldMovement.addScaledVector(cameraUp, worldDeltaY);
+        
+        if (this.isCommandPressed) {
+            // Commandキーが押されている場合：Z軸移動（前後）とX軸移動
+            const cameraForward = new THREE.Vector3();
+            camera.getWorldDirection(cameraForward);
+            
+            const worldDeltaX = (deltaX * sensitivity) * viewportWidth;
+            const worldDeltaZ = (deltaY * sensitivity) * viewportHeight; // Y軸の移動をZ軸に変換
+            
+            worldMovement.addScaledVector(cameraRight, worldDeltaX);
+            worldMovement.addScaledVector(cameraForward, worldDeltaZ);
+            
+            console.log('頂点Z軸移動:', { deltaX, deltaY, worldDeltaX, worldDeltaZ });
+        } else {
+            // 通常のXY軸移動
+            const worldDeltaX = (deltaX * sensitivity) * viewportWidth;
+            const worldDeltaY = (deltaY * sensitivity) * viewportHeight;
+            
+            worldMovement.addScaledVector(cameraRight, worldDeltaX);
+            worldMovement.addScaledVector(cameraUp, worldDeltaY);
+            
+            console.log('頂点XY軸移動:', { deltaX, deltaY, worldDeltaX, worldDeltaY });
+        }
         
         // 新しい選択頂点の位置を計算
         const newSelectedCorner = initialSelectedCorner.clone().add(worldMovement);
