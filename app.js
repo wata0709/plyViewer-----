@@ -1914,14 +1914,14 @@ class TabManager {
 
     async loadDefaultTab() {
         try {
-            const response = await fetch('./Scaniverse 2025-03-27 172709.ply');
+            const response = await fetch('./Scaniverse 2024-07-21 155128.ply');
             if (!response.ok) {
                 console.warn('デフォルトPLYファイルが見つかりません');
                 return;
             }
             
             const arrayBuffer = await response.arrayBuffer();
-            const tab = this.createTab('デフォルト', './Scaniverse 2025-03-27 172709.ply', true);
+            const tab = this.createTab('デフォルト', './Scaniverse 2024-07-21 155128.ply', true);
             
             // PLYファイルを読み込み
             await this.plyViewer.loadPLYFromArrayBuffer(arrayBuffer, tab.id);
