@@ -346,27 +346,19 @@ class TrimBoxManipulator {
     }
 
     orientQuarterCircleHandle(handle, handleData) {
-        // 各辺の位置に応じて回転 - 円側が外向きになるように調整
-        const pos = handleData.pos;
-        const center = this.trimBox.position;
+        // インデックスベースの固定パターンで向きを決定
+        // 角度パターン: [π/2, 0, π, -π/2] （右奥、右手前、左奥、左手前）
+        const anglePatterns = [
+            Math.PI / 2,  // index 0: 右奥の辺 - 円が右奥向き
+            0,            // index 1: 右手前の辺 - 円が右手前向き
+            Math.PI,      // index 2: 左奥の辺 - 円が左奥向き
+            -Math.PI / 2  // index 3: 左手前の辺 - 円が左手前向き
+        ];
         
-        let baseAngleY = 0;
-        if (pos.x > center.x && pos.z > center.z) {
-            // 右奥の辺 - 円が右奥向き
-            baseAngleY = Math.PI / 2;
-        } else if (pos.x > center.x && pos.z < center.z) {
-            // 右手前の辺 - 円が右手前向き
-            baseAngleY = 0;
-        } else if (pos.x < center.x && pos.z > center.z) {
-            // 左奥の辺 - 円が左奥向き
-            baseAngleY = Math.PI;
-        } else {
-            // 左手前の辺 - 円が左手前向き
-            baseAngleY = -Math.PI / 2;
-        }
+        const handleIndex = handleData.handleIndex || 0;
+        const baseAngleY = anglePatterns[handleIndex % 4];
         
         // ユーザー調整オフセットを適用（個別設定優先）
-        const handleIndex = handleData.handleIndex;
         const globalYOffsetRadians = (this.edgeRotationOffset || 0) * (Math.PI / 180);
         const individualYOffsetRadians = (this.individualEdgeYRotations[handleIndex] || 0) * (Math.PI / 180);
         const individualXOffsetRadians = (this.individualEdgeXRotations[handleIndex] || 0) * (Math.PI / 180);
@@ -374,34 +366,29 @@ class TrimBoxManipulator {
         handle.rotation.x = individualXOffsetRadians;
         handle.rotation.y = baseAngleY + globalYOffsetRadians + individualYOffsetRadians;
         handle.rotation.z = 0;
+        
+        // デバッグ用ログ
+        console.log('エッジハンドル向き設定:', { 
+            handleIndex, 
+            baseAngleY: baseAngleY * (180 / Math.PI),
+            finalAngleY: handle.rotation.y * (180 / Math.PI)
+        });
     }
 
     orientQuarterCircleHandleWithRotation(handle, handleData, boxRotation) {
-        // ハンドルの現在の位置から箱の中心への相対位置を計算
-        // （位置は既に箱の回転を考慮して更新されているため、現在位置を使用）
-        const currentPos = handle.position;
-        const center = this.trimBox.position;
-        const relativeX = currentPos.x > center.x ? 1 : -1;
-        const relativeZ = currentPos.z > center.z ? 1 : -1;
+        // インデックスベースの固定パターンで向きを決定（箱の回転は除去）
+        // 角度パターン: [π/2, 0, π, -π/2] （右奥、右手前、左奥、左手前）
+        const anglePatterns = [
+            Math.PI / 2,  // index 0: 右奥の辺 - 円が右奥向き
+            0,            // index 1: 右手前の辺 - 円が右手前向き
+            Math.PI,      // index 2: 左奥の辺 - 円が左奥向き
+            -Math.PI / 2  // index 3: 左手前の辺 - 円が左手前向き
+        ];
         
-        // ローカル座標系での基本角度を計算（箱の回転は位置で既に考慮済み）
-        let baseAngleY = 0;
-        if (relativeX > 0 && relativeZ > 0) {
-            // 右奥の辺 - 円が右奥向き
-            baseAngleY = Math.PI / 2;
-        } else if (relativeX > 0 && relativeZ < 0) {
-            // 右手前の辺 - 円が右手前向き
-            baseAngleY = 0;
-        } else if (relativeX < 0 && relativeZ > 0) {
-            // 左奥の辺 - 円が左奥向き
-            baseAngleY = Math.PI;
-        } else {
-            // 左手前の辺 - 円が左手前向き
-            baseAngleY = -Math.PI / 2;
-        }
+        const handleIndex = handleData.handleIndex || 0;
+        const baseAngleY = anglePatterns[handleIndex % 4];
         
         // ユーザー調整オフセットのみを適用（箱の回転は除去）
-        const handleIndex = handleData.handleIndex;
         const globalYOffsetRadians = (this.edgeRotationOffset || 0) * (Math.PI / 180);
         const individualYOffsetRadians = (this.individualEdgeYRotations[handleIndex] || 0) * (Math.PI / 180);
         const individualXOffsetRadians = (this.individualEdgeXRotations[handleIndex] || 0) * (Math.PI / 180);
@@ -1163,14 +1150,33 @@ class TrimBoxManipulator {
         // エッジハンドル（円の4分の1）の位置を更新（箱の高さ中央）
         this.edgeHandles.forEach((handle, index) => {
             const userData = handle.userData;
-            const edgeX = handle.userData.pos.x > boxCenter.x ? boxSize.x : -boxSize.x;
-            const edgeZ = handle.userData.pos.z > boxCenter.z ? boxSize.z : -boxSize.z;
+            
+            // インデックスベースの固定パターンで位置を決定
+            // 配置パターン: [右奥{x:1,z:1}, 右手前{x:1,z:-1}, 左奥{x:-1,z:1}, 左手前{x:-1,z:-1}]
+            const positionPatterns = [
+                { x: 1, z: 1 },   // index 0: 右奥
+                { x: 1, z: -1 },  // index 1: 右手前
+                { x: -1, z: 1 },  // index 2: 左奥
+                { x: -1, z: -1 }  // index 3: 左手前
+            ];
+            
+            const pattern = positionPatterns[index % 4];
+            const edgeX = pattern.x * boxSize.x;
+            const edgeZ = pattern.z * boxSize.z;
             
             // 箱の高さ中央（Y=0）に配置
             const localPos = new THREE.Vector3(edgeX, 0, edgeZ);
             localPos.applyEuler(boxRotation);
             localPos.add(boxCenter);
             handle.position.copy(localPos);
+            
+            // デバッグ用ログ
+            console.log('エッジハンドル位置更新:', { 
+                index, 
+                pattern,
+                edgeX, edgeZ,
+                finalPos: localPos.toArray()
+            });
             
             // 箱に対する相対角度を維持（相対回転 + 箱の現在回転）
             if (this.initialEdgeRotations[index]) {
