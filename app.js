@@ -28,7 +28,7 @@ class TrimBoxManipulator {
         
         // 長押し検出用の変数
         this.longPressTimer = null;
-        this.longPressDuration = 800; // 800ms で長押し判定
+        this.longPressDuration = 500; // 500ms で長押し判定
         this.isLongPressActive = false;
         this.clickedFaceIntersection = null;
         
