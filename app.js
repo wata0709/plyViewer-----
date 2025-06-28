@@ -28,7 +28,7 @@ class TrimBoxManipulator {
         
         // 長押し検出用の変数
         this.longPressTimer = null;
-        this.longPressDuration = 500; // 500ms で長押し判定
+        this.longPressDuration = 200; // 500ms で長押し判定
         this.isLongPressActive = false;
         this.clickedFaceIntersection = null;
         
@@ -1018,8 +1018,8 @@ class TrimBoxManipulator {
     }
 
     updateBoxRotation(deltaX) {
-        // 辺操作：Y軸回転
-        const newRotation = this.initialBoxRotation + deltaX * 2;
+        // 辺操作：Y軸回転（感度を下げて精密操作を実現）
+        const newRotation = this.initialBoxRotation + deltaX * 0.8;
         this.trimBox.rotation.y = newRotation;
         this.boxHelper.rotation.y = newRotation;
         this.updateHandlePositions();
