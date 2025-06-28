@@ -60,6 +60,7 @@ class TrimBoxManipulator {
         // OBJモデル用
         this.customArrowModel = null; // カスタムOBJモデル
         this.useCustomArrow = false;  // カスタム矢印を使用するかのフラグ
+        this.customArrowScale = 1.0;  // カスタム矢印のスケール
         this.objLoader = new OBJLoader(); // OBJローダー
         
         this.raycaster = new THREE.Raycaster();
@@ -106,10 +107,24 @@ class TrimBoxManipulator {
                 
                 this.useCustomArrow = true;
                 console.log('カスタム矢印モデル読み込み完了');
+                
+                // UIを更新（PLYViewerのupdateCustomArrowUIメソッドを呼び出し）
+                setTimeout(() => {
+                    if (window.plyViewer && typeof window.plyViewer.updateCustomArrowUI === 'function') {
+                        window.plyViewer.updateCustomArrowUI();
+                    }
+                }, 100);
             }
         } catch (error) {
             console.warn('カスタム矢印モデルの読み込みに失敗、デフォルト矢印を使用:', error);
             this.useCustomArrow = false;
+            
+            // UIを更新（エラー状態も反映）
+            setTimeout(() => {
+                if (window.plyViewer && typeof window.plyViewer.updateCustomArrowUI === 'function') {
+                    window.plyViewer.updateCustomArrowUI();
+                }
+            }, 100);
         }
     }
 
@@ -322,13 +337,16 @@ class TrimBoxManipulator {
             const customMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
             const customMesh = new THREE.Mesh(this.customArrowModel.clone(), customMaterial);
             
+            // カスタムスケールを適用
+            customMesh.scale.setScalar(this.customArrowScale);
+            
             // モデルの向きを調整（必要に応じて）
             // OBJモデルのデフォルト向きがY軸上向きでない場合は回転
             // customMesh.rotation.x = Math.PI / 2; // 必要に応じてコメントアウトを解除
             
             arrowGroup.add(customMesh);
             
-            console.log('カスタムOBJ矢印を使用');
+            console.log('カスタムOBJ矢印を使用（スケール:', this.customArrowScale, '）');
             return arrowGroup;
         }
         
@@ -1857,6 +1875,24 @@ class TrimBoxManipulator {
     isCustomArrowAvailable() {
         return this.customArrowModel !== null;
     }
+
+    // カスタム矢印のスケールを設定
+    setCustomArrowScale(scale) {
+        this.customArrowScale = Math.max(0.1, Math.min(3.0, scale)); // 0.1〜3.0の範囲で制限
+        
+        // カスタム矢印を使用中の場合は矢印を再作成
+        if (this.useCustomArrow && this.customArrowModel) {
+            this.updateArrowSizes();
+        }
+        
+        console.log('カスタム矢印スケール変更:', this.customArrowScale);
+        return this.customArrowScale;
+    }
+
+    // カスタム矢印の現在のスケールを取得
+    getCustomArrowScale() {
+        return this.customArrowScale;
+    }
 }
 
 class RealtimePreview {
@@ -2394,6 +2430,9 @@ class PLYViewer {
 
         // 向き調整関連のイベントリスナー
         this.setupOrientationEventListeners();
+        
+        // カスタム矢印関連のイベントリスナー
+        this.setupCustomArrowEventListeners();
     }
 
     async loadPLYFile(file) {
@@ -2950,6 +2989,14 @@ class PLYViewer {
         return this.trimBoxManipulator ? this.trimBoxManipulator.isCustomArrowAvailable() : false;
     }
 
+    setCustomArrowScale(scale) {
+        return this.trimBoxManipulator ? this.trimBoxManipulator.setCustomArrowScale(scale) : 1.0;
+    }
+
+    getCustomArrowScale() {
+        return this.trimBoxManipulator ? this.trimBoxManipulator.getCustomArrowScale() : 1.0;
+    }
+
     resetCameraPosition() {
         if (!this.currentModel) return;
         
@@ -2987,6 +3034,74 @@ class PLYViewer {
         // 確定・リセット
         document.getElementById('resetOrientation').addEventListener('click', () => this.resetOrientation());
         document.getElementById('confirmOrientation').addEventListener('click', () => this.confirmOrientation());
+    }
+
+    setupCustomArrowEventListeners() {
+        // カスタム矢印スケールスライダー
+        const customArrowScaleSlider = document.getElementById('customArrowScaleSlider');
+        const customArrowScaleValue = document.getElementById('customArrowScaleValue');
+        const toggleCustomArrow = document.getElementById('toggleCustomArrow');
+        const customArrowStatus = document.getElementById('customArrowStatus');
+
+        if (customArrowScaleSlider && customArrowScaleValue) {
+            customArrowScaleSlider.addEventListener('input', (e) => {
+                const value = parseFloat(e.target.value);
+                customArrowScaleValue.textContent = value.toFixed(1);
+                this.setCustomArrowScale(value);
+            });
+        }
+
+        if (toggleCustomArrow) {
+            toggleCustomArrow.addEventListener('click', () => {
+                const currentState = this.trimBoxManipulator ? this.trimBoxManipulator.useCustomArrow : false;
+                const newState = this.setUseCustomArrow(!currentState);
+                this.updateCustomArrowUI();
+            });
+        }
+
+        // 初期状態をチェック（少し遅延させてTrimBoxManipulatorの読み込み完了を待つ）
+        setTimeout(() => {
+            this.updateCustomArrowUI();
+        }, 1000);
+    }
+
+    updateCustomArrowUI() {
+        const toggleCustomArrow = document.getElementById('toggleCustomArrow');
+        const customArrowStatus = document.getElementById('customArrowStatus');
+        const customArrowScaleSlider = document.getElementById('customArrowScaleSlider');
+
+        if (!this.trimBoxManipulator) return;
+
+        const isAvailable = this.isCustomArrowAvailable();
+        const isUsing = this.trimBoxManipulator.useCustomArrow;
+        const currentScale = this.getCustomArrowScale();
+
+        // ステータス表示を更新
+        if (customArrowStatus) {
+            if (isAvailable) {
+                customArrowStatus.textContent = isUsing ? 'アクティブ' : '利用可能';
+                customArrowStatus.style.color = isUsing ? '#00ff00' : '#ffff00';
+            } else {
+                customArrowStatus.textContent = '読み込みエラー';
+                customArrowStatus.style.color = '#ff0000';
+            }
+        }
+
+        // トグルボタンを更新
+        if (toggleCustomArrow) {
+            toggleCustomArrow.disabled = !isAvailable;
+            toggleCustomArrow.textContent = `カスタム矢印: ${isUsing ? 'ON' : 'OFF'}`;
+            toggleCustomArrow.className = `btn ${isUsing ? 'btn-secondary' : 'btn'}`;
+        }
+
+        // スライダーを更新
+        if (customArrowScaleSlider) {
+            customArrowScaleSlider.disabled = !isAvailable || !isUsing;
+            customArrowScaleSlider.value = currentScale;
+            document.getElementById('customArrowScaleValue').textContent = currentScale.toFixed(1);
+        }
+
+        console.log('カスタム矢印UI更新:', { isAvailable, isUsing, currentScale });
     }
 
     startOrientationMode() {
@@ -3194,7 +3309,7 @@ class PLYViewer {
 
 document.addEventListener('DOMContentLoaded', () => {
     try {
-        new PLYViewer();
+        window.plyViewer = new PLYViewer();
         console.log('PLY Viewer初期化完了');
     } catch (error) {
         console.error('PLY Viewer初期化エラー:', error);
