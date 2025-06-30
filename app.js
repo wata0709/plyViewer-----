@@ -293,6 +293,10 @@ class TrimBoxManipulator {
             this.scene.add(handle);
             this.handles.push(handle); // 面ハンドルもhandlesに追加
             this.faceHandles.push(handle);
+            
+            // 矢印の回転軸を可視化
+            this.createRotationAxisVisualizer(handle, handleData);
+            
             console.log('面ハンドル作成:', { 
                 type: handleData.type, 
                 axis: handleData.axis, 
@@ -684,6 +688,11 @@ class TrimBoxManipulator {
         this.selectedFace = faceHandle;
         faceHandle.visible = true;
         
+        // 回転軸を表示
+        if (faceHandle.rotationAxisLine) {
+            faceHandle.rotationAxisLine.visible = true;
+        }
+        
         // Groupの子要素（線部分と先端）の色を白色に設定
         console.log('面選択時のハンドル情報:', {
             type: faceHandle.type,
@@ -708,6 +717,12 @@ class TrimBoxManipulator {
     deselectFace() {
         if (this.selectedFace) {
             this.selectedFace.visible = false;
+            
+            // 回転軸を非表示
+            if (this.selectedFace.rotationAxisLine) {
+                this.selectedFace.rotationAxisLine.visible = false;
+            }
+            
             this.selectedFace = null;
             
             console.log('面選択を解除');
@@ -1653,6 +1668,11 @@ class TrimBoxManipulator {
         [...this.handles, ...this.faceHandles, ...this.edgeHandles, ...this.cornerHandles].forEach(handle => {
             this.scene.remove(handle);
             
+            // 回転軸線も削除
+            if (handle.rotationAxisLine) {
+                this.scene.remove(handle.rotationAxisLine);
+            }
+            
             // Groupの場合は子要素もクリア
             if (handle.type === 'Group') {
                 handle.children.forEach(child => {
@@ -1840,6 +1860,12 @@ class TrimBoxManipulator {
         // すべての面ハンドル（矢印）を削除して再作成
         this.faceHandles.forEach(handle => {
             this.scene.remove(handle);
+            
+            // 回転軸線も削除
+            if (handle.rotationAxisLine) {
+                this.scene.remove(handle.rotationAxisLine);
+            }
+            
             // handlesからも削除
             const index = this.handles.indexOf(handle);
             if (index !== -1) {
@@ -2095,6 +2121,47 @@ class TrimBoxManipulator {
                 customRotation.z + cameraFacingRotation.z
             );
         });
+    }
+    
+    createRotationAxisVisualizer(handle, faceData) {
+        // 回転軸の方向を決定
+        let axisDirection;
+        let axisColor;
+        
+        switch (faceData.axis) {
+            case 'x':
+                axisDirection = new THREE.Vector3(1, 0, 0); // X軸方向
+                axisColor = 0xff0000; // 赤
+                break;
+            case 'y':
+                axisDirection = new THREE.Vector3(0, 1, 0); // Y軸方向
+                axisColor = 0x00ff00; // 緑
+                break;
+            case 'z':
+                axisDirection = new THREE.Vector3(0, 0, 1); // Z軸方向
+                axisColor = 0x0000ff; // 青
+                break;
+        }
+        
+        // 回転軸の線を作成
+        const axisLength = 1.5;
+        const axisStart = handle.position.clone().add(axisDirection.clone().multiplyScalar(-axisLength/2));
+        const axisEnd = handle.position.clone().add(axisDirection.clone().multiplyScalar(axisLength/2));
+        
+        const geometry = new THREE.BufferGeometry().setFromPoints([axisStart, axisEnd]);
+        const material = new THREE.LineBasicMaterial({ 
+            color: axisColor, 
+            linewidth: 3,
+            transparent: true,
+            opacity: 0.8
+        });
+        
+        const axisLine = new THREE.Line(geometry, material);
+        axisLine.visible = false; // 初期は非表示
+        
+        // ハンドルに軸線を関連付け
+        handle.rotationAxisLine = axisLine;
+        this.scene.add(axisLine);
     }
 }
 
