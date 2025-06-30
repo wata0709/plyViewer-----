@@ -50,24 +50,17 @@ class TrimBoxManipulator {
         this.individualEdgeYRotations = [-90, 0, 0, -90]; // 各ハンドルの個別Y軸回転（度単位）
         this.individualEdgeXRotations = [90, -90, 90, -90]; // 各ハンドルの個別X軸回転（度単位）
         
-        // 矢印サイズの個別パラメータ
+        // 円錐のサイズパラメータ
         this.arrowOffset = 0.55;      // 始まり位置（箱からの距離）
-        this.arrowTipRadius = 1.4;    // 先端の大きさ（円錐の半径）
-        this.arrowTipHeight = 3.0;    // 先端の高さ（円錐の高さ）
-        this.arrowShaftRadius = 1.0;  // 線の太さ（円柱の半径）
-        this.arrowShaftHeight = 3.0;  // 線の長さ（円柱の高さ）
+        this.coneRadius = 0.200;      // 円錐の底面半径
+        this.coneHeight = 0.700;      // 円錐の高さ
         
-        // OBJモデル用
-        this.customArrowModel = null; // カスタムOBJモデル
-        this.useCustomArrow = false;  // カスタム矢印を使用するかのフラグ
-        this.customArrowScale = 6.0;  // カスタム矢印のスケール（6倍に変更）
-        this.objLoader = new OBJLoader(); // OBJローダー
-        
-        // カスタム矢印の個別回転（面ごと）
-        this.customArrowRotations = new Map(); // キー: 'axis_direction' (例: 'x_1', 'y_-1'), 値: {x, y, z}回転角度
-        
-        // 初期回転角度を設定
-        this.initializeCustomArrowRotations();
+        // カスタム矢印関連
+        this.customArrowModel = null;    // カスタムOBJモデル
+        this.useCustomArrow = true;      // カスタム矢印を常時使用
+        this.customArrowScale = 0.07;     // カスタム矢印のスケール
+        this.customArrowLoaded = false;  // カスタム矢印が読み込まれたかどうか
+
         
         this.raycaster = new THREE.Raycaster();
         // Lineのレイキャスト判定を厳密にする
@@ -75,62 +68,30 @@ class TrimBoxManipulator {
         this.mouse = new THREE.Vector2();
         
         this.setupEventListeners();
-        
-        // OBJファイルを読み込み
-        this.loadCustomArrowModel();
+        this.loadCustomArrowModel(); // カスタム矢印モデルを読み込み
     }
 
     async loadCustomArrowModel() {
         try {
-            const objModel = await new Promise((resolve, reject) => {
-                this.objLoader.load(
-                    'OBJ/アセット 1.obj',
-                    resolve,
-                    (progress) => console.log('OBJモデル読み込み進行:', progress),
-                    reject
-                );
+            const loader = new OBJLoader();
+            this.customArrowModel = await new Promise((resolve, reject) => {
+                loader.load('OBJ/アセット 2.obj', resolve, undefined, reject);
             });
-
-            // モデルの準備
-            if (objModel && objModel.children.length > 0) {
-                // 最初の子オブジェクトを使用
-                const modelMesh = objModel.children[0];
-                
-                // ジオメトリを取得
-                this.customArrowModel = modelMesh.geometry;
-                
-                // モデルのサイズを調整
-                this.customArrowModel.computeBoundingBox();
-                const boundingBox = this.customArrowModel.boundingBox;
-                const size = boundingBox.getSize(new THREE.Vector3());
-                
-                // サイズを適切にスケール（矢印として適切な大きさに）
-                const scale = 0.1 / Math.max(size.x, size.y, size.z);
-                this.customArrowModel.scale(scale, scale, scale);
-                
-                // 中央に配置
-                this.customArrowModel.center();
-                
-                this.useCustomArrow = true;
-                console.log('カスタム矢印モデル読み込み完了');
-                
-                // UIを更新（PLYViewerのupdateCustomArrowUIメソッドを呼び出し）
-                setTimeout(() => {
-                    if (window.plyViewer && typeof window.plyViewer.updateCustomArrowUI === 'function') {
-                        window.plyViewer.updateCustomArrowUI();
-                    }
-                }, 100);
-            }
-        } catch (error) {
-            console.warn('カスタム矢印モデルの読み込みに失敗、デフォルト矢印を使用:', error);
-            this.useCustomArrow = false;
             
-            // UIを更新（エラー状態も反映）
-            setTimeout(() => {
-                if (window.plyViewer && typeof window.plyViewer.updateCustomArrowUI === 'function') {
-                    window.plyViewer.updateCustomArrowUI();
+            // モデルのスケールとマテリアルを設定
+            this.customArrowModel.traverse((child) => {
+                if (child.isMesh) {
+                    child.material = new THREE.MeshBasicMaterial({ color: 0xffffff });
                 }
-            }, 100);
+            });
+            
+            this.customArrowLoaded = true;
+            this.useCustomArrow = true; // デフォルトでカスタム矢印を使用
+            console.log('カスタム矢印モデル (アセット 2.obj) の読み込み完了');
+        } catch (error) {
+            console.warn('カスタム矢印モデルの読み込みに失敗:', error);
+            this.customArrowLoaded = false;
+            this.useCustomArrow = false;
         }
     }
 
@@ -191,16 +152,17 @@ class TrimBoxManipulator {
         const edges = new THREE.EdgesGeometry(geometry);
         const lineMaterial = new THREE.LineBasicMaterial({ 
             color: this.boxColor, 
-            linewidth: 2 
+            linewidth: 2,
+            depthTest: false,  // 深度テストを無効にして常に最前面に表示
+            depthWrite: false, // 深度バッファに書き込まない
+            transparent: true  // 透明度設定を有効にする
         });
         this.boxHelper = new THREE.LineSegments(edges, lineMaterial);
         this.boxHelper.position.copy(modelCenter);
+        this.boxHelper.renderOrder = 1000; // 高いレンダリング順序で最前面に表示
         this.scene.add(this.boxHelper);
         
-        // XYZ軸ヘルパーを追加
-        this.axesHelper = new THREE.AxesHelper(2);
-        this.axesHelper.position.copy(modelCenter);
-        this.scene.add(this.axesHelper);
+
         
         // 初期の3D空間でのサイズと位置を保存
         this.fixedBoxSize = boxSize;
@@ -294,8 +256,7 @@ class TrimBoxManipulator {
             this.handles.push(handle); // 面ハンドルもhandlesに追加
             this.faceHandles.push(handle);
             
-            // 矢印の回転軸を可視化
-            this.createRotationAxisVisualizer(handle, handleData);
+
             
             console.log('面ハンドル作成:', { 
                 type: handleData.type, 
@@ -344,69 +305,32 @@ class TrimBoxManipulator {
     }
 
     createArrowGeometry(faceData = null) {
-        // カスタムOBJモデルが利用可能な場合はそれを使用
-        if (this.useCustomArrow && this.customArrowModel) {
-            const arrowGroup = new THREE.Group();
+        // カスタム矢印が利用可能で使用フラグがtrueの場合はカスタムモデルを使用
+        if (this.useCustomArrow && this.customArrowModel && this.customArrowLoaded) {
+            const customArrow = this.customArrowModel.clone();
             
-            // カスタムモデルのメッシュを作成
-            const customMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
-            const customMesh = new THREE.Mesh(this.customArrowModel.clone(), customMaterial);
+            // スケールを適用
+            customArrow.scale.set(this.customArrowScale, this.customArrowScale, this.customArrowScale);
             
-            // カスタムスケールを適用
-            customMesh.scale.setScalar(this.customArrowScale);
-            
-            // 面固有のカスタム回転を適用
-            if (faceData) {
-                const faceKey = `${faceData.axis}_${faceData.direction}`;
-                const customRotation = this.customArrowRotations.get(faceKey);
-                if (customRotation) {
-                    customMesh.rotation.x += customRotation.x;
-                    customMesh.rotation.y += customRotation.y;
-                    customMesh.rotation.z += customRotation.z;
+            // すべての子オブジェクトのマテリアルを白色に設定
+            customArrow.traverse((child) => {
+                if (child.isMesh) {
+                    child.material = child.material.clone();
+                    child.material.color.setHex(0xffffff);
                 }
-            }
+            });
             
-            arrowGroup.add(customMesh);
+            console.log('カスタム矢印を使用 - スケール:', this.customArrowScale);
+            return customArrow;
+        } else {
+            // デフォルトの円錐を作成
+            const coneGeometry = new THREE.ConeGeometry(this.coneRadius, this.coneHeight, 8);
+            const coneMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const cone = new THREE.Mesh(coneGeometry, coneMaterial);
             
-            console.log('カスタムOBJ矢印を使用（スケール:', this.customArrowScale, '）');
-            return arrowGroup;
+            console.log('円錐矢印を使用 - 半径:', this.coneRadius, '高さ:', this.coneHeight);
+            return cone;
         }
-        
-        // デフォルトの矢印形状：線部分（円柱）と先端（円錐）を組み合わせ
-        const arrowGroup = new THREE.Group();
-        
-        // 基本サイズ
-        const baseShaftRadius = 0.03;
-        const baseShaftHeight = 0.15;
-        const baseTipRadius = 0.06;
-        const baseTipHeight = 0.12;
-        
-        // 個別パラメータ適用
-        const shaftRadius = baseShaftRadius * this.arrowShaftRadius;
-        const shaftHeight = baseShaftHeight * this.arrowShaftHeight;
-        const tipRadius = baseTipRadius * this.arrowTipRadius;
-        const tipHeight = baseTipHeight * this.arrowTipHeight;
-        
-        // 線部分（円柱）
-        const shaftGeometry = new THREE.CylinderGeometry(shaftRadius, shaftRadius, shaftHeight, 8);
-        const shaftMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
-        const shaft = new THREE.Mesh(shaftGeometry, shaftMaterial);
-        
-        // 先端部分（円錐）
-        const tipGeometry = new THREE.ConeGeometry(tipRadius, tipHeight, 8);
-        const tipMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
-        const tip = new THREE.Mesh(tipGeometry, tipMaterial);
-        
-        // 位置調整：円柱と円錐が適切に接続するように配置
-        const totalHeight = shaftHeight + tipHeight;
-        shaft.position.y = -tipHeight * 0.5; // 円柱を下に配置
-        tip.position.y = shaftHeight * 0.5;   // 円錐を上に配置
-        
-        arrowGroup.add(shaft);
-        arrowGroup.add(tip);
-        
-        console.log('デフォルト矢印を使用');
-        return arrowGroup;
     }
 
     createQuarterCircleTubeGeometry() {
@@ -572,26 +496,45 @@ class TrimBoxManipulator {
             console.log('ハンドルヒット検出開始 - ドラッグ準備');
             this.isDragging = true;
             
-            // Groupの子要素がヒットした場合は親のGroupを取得
+            // 円錐（Mesh）またはGroupの子要素がヒットした場合の処理
             let targetObject = intersects[0].object;
-            console.log('初期targetObject:', { type: targetObject.type, hasUserData: !!targetObject.userData });
+            console.log('初期targetObject:', { 
+                type: targetObject.type, 
+                hasUserData: !!targetObject.userData,
+                userDataType: targetObject.userData?.type,
+                position: targetObject.position
+            });
             
             // userDataを持つ親を探す（最大3階層まで遡る）
             let currentObject = targetObject;
             for (let i = 0; i < 3; i++) {
                 if (currentObject.userData && currentObject.userData.type) {
-                    console.log('userDataを持つオブジェクト発見:', { type: currentObject.type, userData: currentObject.userData });
+                    console.log('userDataを持つオブジェクト発見:', { 
+                        type: currentObject.type, 
+                        userData: currentObject.userData,
+                        階層: i
+                    });
                     targetObject = currentObject;
                     break;
                 }
                 if (currentObject.parent && currentObject.parent !== this.scene) {
                     currentObject = currentObject.parent;
-                    console.log('親を辿る:', { type: currentObject.type, hasUserData: !!currentObject.userData });
+                    console.log('親を辿る:', { 
+                        type: currentObject.type, 
+                        hasUserData: !!currentObject.userData,
+                        userDataType: currentObject.userData?.type
+                    });
                 } else {
                     console.log('これ以上親がない、またはSceneに到達');
                     break;
                 }
             }
+            
+            console.log('最終的なactiveHandle:', {
+                type: targetObject.type,
+                userDataType: targetObject.userData?.type,
+                hasMaterial: !!targetObject.material
+            });
             
             this.activeHandle = targetObject;
             this.initialMousePos.copy(this.mouse);
@@ -610,14 +553,20 @@ class TrimBoxManipulator {
             
             // 選択時の色変更
             if (userData.type === 'face') {
-                // Groupの子要素の色を黄色に変更
-                console.log('面ハンドル色変更:', { childrenCount: this.activeHandle.children.length });
-                this.activeHandle.children.forEach(child => {
-                    if (child.material) {
-                        child.material.color.setHex(0xffff00);
-                        console.log('子要素の色変更:', child.type);
-                    }
-                });
+                // 円錐（Mesh）の場合は直接material.colorを変更
+                if (this.activeHandle.material) {
+                    this.activeHandle.material.color.setHex(0xffff00);
+                    console.log('円錐色変更:', this.activeHandle.type);
+                } else if (this.activeHandle.children) {
+                    // Groupの子要素の色を黄色に変更（後方互換性）
+                    console.log('面ハンドル色変更:', { childrenCount: this.activeHandle.children.length });
+                    this.activeHandle.children.forEach(child => {
+                        if (child.material) {
+                            child.material.color.setHex(0xffff00);
+                            console.log('子要素の色変更:', child.type);
+                        }
+                    });
+                }
             } else {
                 this.activeHandle.material.color.setHex(0xffff00);
                 console.log('通常ハンドル色変更:', userData.type);
@@ -688,23 +637,29 @@ class TrimBoxManipulator {
         this.selectedFace = faceHandle;
         faceHandle.visible = true;
         
-        // 回転軸を表示
-        if (faceHandle.rotationAxisLine) {
-            faceHandle.rotationAxisLine.visible = true;
-        }
+
         
-        // Groupの子要素（線部分と先端）の色を白色に設定
+        // 円錐（面ハンドル）の色を白色に設定
         console.log('面選択時のハンドル情報:', {
             type: faceHandle.type,
-            childrenCount: faceHandle.children.length,
-            hasUserData: !!faceHandle.userData
+            childrenCount: faceHandle.children ? faceHandle.children.length : 0,
+            hasUserData: !!faceHandle.userData,
+            hasMaterial: !!faceHandle.material
         });
-        faceHandle.children.forEach(child => {
-            if (child.material) {
-                child.material.color.setHex(0xffffff);
-                console.log('子要素色設定:', child.type);
-            }
-        });
+        
+        // 円錐（Mesh）の場合は直接material.colorを変更
+        if (faceHandle.material) {
+            faceHandle.material.color.setHex(0xffffff);
+            console.log('円錐色設定完了:', faceHandle.type);
+        } else if (faceHandle.children) {
+            // Groupの子要素の色を白色に設定（後方互換性）
+            faceHandle.children.forEach(child => {
+                if (child.material) {
+                    child.material.color.setHex(0xffffff);
+                    console.log('子要素色設定:', child.type);
+                }
+            });
+        }
         
         // 選択された面ハンドルをドラッグ可能なハンドルとして登録
         // ※この時点で面ハンドルは既にthis.handlesに含まれているはず
@@ -718,10 +673,7 @@ class TrimBoxManipulator {
         if (this.selectedFace) {
             this.selectedFace.visible = false;
             
-            // 回転軸を非表示
-            if (this.selectedFace.rotationAxisLine) {
-                this.selectedFace.rotationAxisLine.visible = false;
-            }
+
             
             this.selectedFace = null;
             
@@ -787,10 +739,33 @@ class TrimBoxManipulator {
         this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
         this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
         
-        const deltaX = (this.mouse.x - this.initialMousePos.x) * 5;
-        const deltaY = (this.mouse.y - this.initialMousePos.y) * 5;
+        // より精密なマウス移動量計算
+        const deltaX = (this.mouse.x - this.initialMousePos.x);
+        const deltaY = (this.mouse.y - this.initialMousePos.y);
         
-        this.updateBoxFromHandle(deltaX, deltaY);
+        // 操作タイプに応じて感度を調整
+        const userData = this.activeHandle.userData;
+        let sensitivityMultiplier = 5; // デフォルト
+        
+        switch (userData.type) {
+            case 'face':
+                sensitivityMultiplier = 3; // 面操作は感度を下げて精密に
+                break;
+            case 'edge':
+                sensitivityMultiplier = 4; // 回転操作は適度な感度
+                break;
+            case 'corner':
+                sensitivityMultiplier = 3; // 頂点操作は精密に
+                break;
+            case 'boxMove':
+                sensitivityMultiplier = 2; // 箱移動は最も精密に
+                break;
+        }
+        
+        const adjustedDeltaX = deltaX * sensitivityMultiplier;
+        const adjustedDeltaY = deltaY * sensitivityMultiplier;
+        
+        this.updateBoxFromHandle(adjustedDeltaX, adjustedDeltaY);
     }
 
     onMouseUp(event) {
@@ -848,12 +823,17 @@ class TrimBoxManipulator {
         
         switch (userData.type) {
             case 'face':
-                // Groupの子要素の色を薄い黄色に変更
-                handle.children.forEach(child => {
-                    if (child.material) {
-                        child.material.color.setHex(hoverColor);
-                    }
-                });
+                // 円錐（Mesh）の場合は直接material.colorを変更
+                if (handle.material) {
+                    handle.material.color.setHex(hoverColor);
+                } else {
+                    // Groupの子要素の色を薄い黄色に変更（後方互換性）
+                    handle.children.forEach(child => {
+                        if (child.material) {
+                            child.material.color.setHex(hoverColor);
+                        }
+                    });
+                }
                 break;
             case 'edge':
                 if (handle.material) {
@@ -879,12 +859,17 @@ class TrimBoxManipulator {
         
         switch (userData.type) {
             case 'face':
-                // Groupの子要素の色を白色に戻す
-                handle.children.forEach(child => {
-                    if (child.material) {
-                        child.material.color.setHex(normalColor);
-                    }
-                });
+                // 円錐（Mesh）の場合は直接material.colorを変更
+                if (handle.material) {
+                    handle.material.color.setHex(normalColor);
+                } else {
+                    // Groupの子要素の色を白色に戻す（後方互換性）
+                    handle.children.forEach(child => {
+                        if (child.material) {
+                            child.material.color.setHex(normalColor);
+                        }
+                    });
+                }
                 break;
             case 'edge':
                 if (handle.material) {
@@ -957,6 +942,18 @@ class TrimBoxManipulator {
         if (this.trimBox.material) {
             this.trimBox.material.color.setHex(color);
             this.trimBox.material.opacity = opacity;
+            
+            // 移動時は深度テストを無効にして確実に最前面に表示
+            if (isMoving) {
+                this.trimBox.material.depthTest = false;  // 深度テスト無効
+                this.trimBox.material.depthWrite = false; // 深度バッファ書き込み無効
+            } else {
+                this.trimBox.material.depthTest = true;   // 深度テスト復元
+                this.trimBox.material.depthWrite = true;  // 深度バッファ書き込み復元
+            }
+            
+            // マテリアルの更新を強制
+            this.trimBox.material.needsUpdate = true;
         }
         
         // 箱の辺（エッジライン）の色を変更
@@ -964,19 +961,40 @@ class TrimBoxManipulator {
             this.boxHelper.material.color.setHex(color);
         }
         
-        console.log('箱移動色変更:', { isMoving, color: color.toString(16) });
+        // 移動時のレンダリング順序を調整（最前面に表示）
+        if (isMoving) {
+            this.trimBox.renderOrder = 1003; // 最高レベルの前面表示
+            this.boxHelper.renderOrder = 1004; // さらに前面（境界線より）
+        } else {
+            this.trimBox.renderOrder = 0; // デフォルトに戻す
+            this.boxHelper.renderOrder = 1000; // 境界線の元の順序に戻す
+        }
+        
+        console.log('箱移動色変更:', { 
+            isMoving, 
+            color: color.toString(16), 
+            trimBoxRenderOrder: this.trimBox.renderOrder,
+            boxHelperRenderOrder: this.boxHelper.renderOrder,
+            depthTest: this.trimBox.material.depthTest,
+            depthWrite: this.trimBox.material.depthWrite
+        });
     }
 
     resetHandleColor(handle) {
         const userData = handle.userData;
         switch (userData.type) {
             case 'face':
-                // Groupの子要素の色を白色に戻す
-                handle.children.forEach(child => {
-                    if (child.material) {
-                        child.material.color.setHex(0xffffff);
-                    }
-                });
+                // 円錐（Mesh）の場合は直接material.colorを変更
+                if (handle.material) {
+                    handle.material.color.setHex(0xffffff);
+                } else {
+                    // Groupの子要素の色を白色に戻す（後方互換性）
+                    handle.children.forEach(child => {
+                        if (child.material) {
+                            child.material.color.setHex(0xffffff);
+                        }
+                    });
+                }
                 break;
             case 'edge':
                 handle.material.color.setHex(0xffffff); // 白色
@@ -1077,7 +1095,7 @@ class TrimBoxManipulator {
         const viewportWidth = viewportHeight * camera.aspect;
         
         // マウス移動量をワールド座標での移動量に変換（感度調整）
-        const sensitivity = 0.12; // 面操作は少し感度を下げる
+        const sensitivity = 0.2; // 面操作の感度を上げて反応性を向上
         const worldDeltaX = (deltaX * sensitivity) * viewportWidth;
         const worldDeltaY = (deltaY * sensitivity) * viewportHeight;
         
@@ -1652,10 +1670,7 @@ class TrimBoxManipulator {
             this.trimBox = null;
         }
         
-        if (this.axesHelper) {
-            this.scene.remove(this.axesHelper);
-            this.axesHelper = null;
-        }
+
         
         if (this.boxHelper) {
             this.scene.remove(this.boxHelper);
@@ -1667,11 +1682,6 @@ class TrimBoxManipulator {
         // 全てのハンドルをクリア
         [...this.handles, ...this.faceHandles, ...this.edgeHandles, ...this.cornerHandles].forEach(handle => {
             this.scene.remove(handle);
-            
-            // 回転軸線も削除
-            if (handle.rotationAxisLine) {
-                this.scene.remove(handle.rotationAxisLine);
-            }
             
             // Groupの場合は子要素もクリア
             if (handle.type === 'Group') {
@@ -1711,9 +1721,6 @@ class TrimBoxManipulator {
         // 箱のサイズを更新
         this.scene.remove(this.trimBox);
         this.scene.remove(this.boxHelper);
-        if (this.axesHelper) {
-            this.scene.remove(this.axesHelper);
-        }
         this.trimBox.geometry.dispose();
         this.boxHelper.geometry.dispose();
         
@@ -1730,26 +1737,25 @@ class TrimBoxManipulator {
         this.boxHelper.material.color.setHex(this.boxColor); // 色を保持
         this.scene.add(this.boxHelper);
         
-        // XYZ軸ヘルパーを再作成
-        this.axesHelper = new THREE.AxesHelper(2);
-        this.axesHelper.position.copy(this.targetPosition);
-        this.scene.add(this.axesHelper);
-        
         this.updateHandlePositions();
     }
 
     updateBoxSizeGeometry(newSize, center, preserveRotation = true) {
         if (!this.trimBox) return;
         
-        // 現在の回転を保存
+        // 現在の状態を保存
         const currentRotation = preserveRotation ? this.trimBox.rotation.clone() : new THREE.Euler();
+        const currentColor = this.trimBox.material.color.getHex();
+        const currentOpacity = this.trimBox.material.opacity;
+        const currentDepthTest = this.trimBox.material.depthTest;
+        const currentDepthWrite = this.trimBox.material.depthWrite;
+        const currentTrimBoxRenderOrder = this.trimBox.renderOrder;
+        const currentBoxHelperRenderOrder = this.boxHelper.renderOrder;
+        const currentBoxHelperColor = this.boxHelper.material.color.getHex();
         
         // 箱のサイズを更新
         this.scene.remove(this.trimBox);
         this.scene.remove(this.boxHelper);
-        if (this.axesHelper) {
-            this.scene.remove(this.axesHelper);
-        }
         this.trimBox.geometry.dispose();
         this.boxHelper.geometry.dispose();
         
@@ -1757,18 +1763,28 @@ class TrimBoxManipulator {
         this.trimBox.geometry = geometry;
         this.trimBox.position.copy(center);
         this.trimBox.rotation.copy(currentRotation); // 回転を復元
+        // 色、不透明度、深度設定、レンダリング順序を復元
+        this.trimBox.material.color.setHex(currentColor);
+        this.trimBox.material.opacity = currentOpacity;
+        this.trimBox.material.depthTest = currentDepthTest;
+        this.trimBox.material.depthWrite = currentDepthWrite;
+        this.trimBox.material.needsUpdate = true; // マテリアル更新を強制
+        this.trimBox.renderOrder = currentTrimBoxRenderOrder;
         this.scene.add(this.trimBox);
         
         const edges = new THREE.EdgesGeometry(geometry);
-        this.boxHelper.geometry = edges;
+        const lineMaterial = new THREE.LineBasicMaterial({ 
+            color: currentBoxHelperColor, // 保存した色を使用
+            linewidth: 2,
+            depthTest: false,  // 深度テストを無効にして常に最前面に表示
+            depthWrite: false, // 深度バッファに書き込まない
+            transparent: true  // 透明度設定を有効にする
+        });
+        this.boxHelper = new THREE.LineSegments(edges, lineMaterial);
         this.boxHelper.position.copy(center);
         this.boxHelper.rotation.copy(currentRotation); // 回転を復元
+        this.boxHelper.renderOrder = currentBoxHelperRenderOrder; // 保存したレンダリング順序を復元
         this.scene.add(this.boxHelper);
-        
-        // XYZ軸ヘルパーを再作成
-        this.axesHelper = new THREE.AxesHelper(2);
-        this.axesHelper.position.copy(center);
-        this.scene.add(this.axesHelper);
         
         // 位置を更新
         this.targetPosition.copy(center);
@@ -1830,41 +1846,45 @@ class TrimBoxManipulator {
         console.log('回転軸表示:', show);
     }
 
-    // 矢印サイズ変更メソッド（個別パラメータ）
+    // 円錐サイズ変更メソッド
     setArrowOffset(offset) {
         this.arrowOffset = offset;
         this.updateArrowSizes();
     }
 
-    setArrowTipRadius(scale) {
-        this.arrowTipRadius = scale;
+    setConeRadius(radius) {
+        this.coneRadius = radius;
         this.updateArrowSizes();
     }
 
-    setArrowTipHeight(scale) {
-        this.arrowTipHeight = scale;
+    setConeHeight(height) {
+        this.coneHeight = height;
         this.updateArrowSizes();
     }
 
-    setArrowShaftRadius(scale) {
-        this.arrowShaftRadius = scale;
-        this.updateArrowSizes();
+    // カスタム矢印制御メソッド
+    setUseCustomArrow(use) {
+        this.useCustomArrow = use && this.customArrowLoaded;
+        this.updateArrowSizes(); // 矢印を再作成
+        console.log('カスタム矢印使用:', this.useCustomArrow);
     }
 
-    setArrowShaftHeight(scale) {
-        this.arrowShaftHeight = scale;
-        this.updateArrowSizes();
+    setCustomArrowScale(scale) {
+        this.customArrowScale = Math.max(0.1, Math.min(10.0, scale));
+        if (this.useCustomArrow) {
+            this.updateArrowSizes(); // 矢印を再作成
+        }
+        console.log('カスタム矢印スケール設定:', this.customArrowScale);
+    }
+
+    isCustomArrowAvailable() {
+        return this.customArrowLoaded;
     }
 
     updateArrowSizes() {
         // すべての面ハンドル（矢印）を削除して再作成
         this.faceHandles.forEach(handle => {
             this.scene.remove(handle);
-            
-            // 回転軸線も削除
-            if (handle.rotationAxisLine) {
-                this.scene.remove(handle.rotationAxisLine);
-            }
             
             // handlesからも削除
             const index = this.handles.indexOf(handle);
@@ -1910,259 +1930,21 @@ class TrimBoxManipulator {
                 this.faceHandles.push(handle);
             });
 
-            console.log('矢印サイズ更新完了:', {
+            console.log('円錐サイズ更新完了:', {
                 arrowOffset: this.arrowOffset,
-                arrowTipRadius: this.arrowTipRadius,
-                arrowTipHeight: this.arrowTipHeight,
-                arrowShaftRadius: this.arrowShaftRadius,
-                arrowShaftHeight: this.arrowShaftHeight,
+                coneRadius: this.coneRadius,
+                coneHeight: this.coneHeight,
                 faceHandleCount: this.faceHandles.length,
                 shouldBeVisible: shouldBeVisible
             });
         }
     }
 
-    // カスタム矢印の使用を切り替えるメソッド
-    setUseCustomArrow(useCustom) {
-        this.useCustomArrow = useCustom && this.customArrowModel !== null;
-        
-        // 矢印を再作成して変更を適用
-        this.updateArrowSizes();
-        
-        console.log('カスタム矢印使用設定変更:', { 
-            useCustomArrow: this.useCustomArrow,
-            hasCustomModel: this.customArrowModel !== null
-        });
-        
-        return this.useCustomArrow;
-    }
 
-    // カスタム矢印が利用可能かチェック
-    isCustomArrowAvailable() {
-        return this.customArrowModel !== null;
-    }
 
-    // カスタム矢印のスケールを設定
-    setCustomArrowScale(scale) {
-        this.customArrowScale = Math.max(0.1, Math.min(3.0, scale)); // 0.1〜3.0の範囲で制限
-        
-        // カスタム矢印を使用中の場合は矢印を再作成
-        if (this.useCustomArrow && this.customArrowModel) {
-            this.updateArrowSizes();
-        }
-        
-        console.log('カスタム矢印スケール変更:', this.customArrowScale);
-        return this.customArrowScale;
-    }
 
-    // カスタム矢印の現在のスケールを取得
-    getCustomArrowScale() {
-        return this.customArrowScale;
-    }
-
-    // カスタム矢印の回転UI更新
-    updateArrowRotationUI() {
-        if (window.plyViewer && window.plyViewer.updateArrowRotationUI) {
-            window.plyViewer.updateArrowRotationUI();
-        }
-    }
-
-    // カスタム矢印の個別回転を設定
-    setCustomArrowRotation(faceKey, axis, angle) {
-        if (!this.customArrowRotations.has(faceKey)) {
-            this.customArrowRotations.set(faceKey, { x: 0, y: 0, z: 0 });
-        }
-        
-        const rotation = this.customArrowRotations.get(faceKey);
-        rotation[axis] += angle;
-        
-        // 矢印を再作成して回転を反映
-        this.updateArrowSizes();
-        
-        // 角度表示を更新
-        this.updateRotationDisplays();
-        
-        console.log(`カスタム矢印回転設定: ${faceKey}, ${axis}軸: ${(rotation[axis] * 180 / Math.PI).toFixed(0)}度`);
-    }
-
-    // カスタム矢印の個別回転をリセット
-    resetCustomArrowRotation(faceKey) {
-        if (this.customArrowRotations.has(faceKey)) {
-            this.customArrowRotations.set(faceKey, { x: 0, y: 0, z: 0 });
-            
-            // 矢印を再作成して回転を反映
-            this.updateArrowSizes();
-            
-            // 角度表示を更新
-            this.updateRotationDisplays();
-            
-            console.log(`カスタム矢印回転リセット: ${faceKey}`);
-        }
-    }
-
-    // 全てのカスタム矢印回転をリセット
-    resetAllCustomArrowRotations() {
-        const faceKeys = ['x_1', 'x_-1', 'y_1', 'y_-1', 'z_1', 'z_-1'];
-        
-        faceKeys.forEach(faceKey => {
-            this.customArrowRotations.set(faceKey, { x: 0, y: 0, z: 0 });
-        });
-        
-        // 矢印を再作成して回転を反映
-        this.updateArrowSizes();
-        
-        // 角度表示を更新
-        this.updateRotationDisplays();
-        
-        console.log('全てのカスタム矢印回転をリセット');
-    }
-
-        // 回転角度表示を更新
-    updateRotationDisplays() {
-        const faceKeys = ['x_1', 'x_-1', 'y_1', 'y_-1', 'z_1', 'z_-1'];
-        const axes = ['x', 'y', 'z'];
-        
-        faceKeys.forEach(faceKey => {
-            const rotation = this.customArrowRotations.get(faceKey) || { x: 0, y: 0, z: 0 };
-            
-            // 各軸の角度を個別に表示
-            axes.forEach(axis => {
-                const displayElement = document.getElementById(`rotation-${faceKey}-${axis}`);
-                if (displayElement) {
-                    const degrees = Math.round(rotation[axis] * 180 / Math.PI);
-                    displayElement.textContent = `${degrees}°`;
-                    
-                    // 角度に応じて色の透明度を変更（0度は薄く、回転があると濃く）
-                    const absDegreesModulo = Math.abs(degrees % 360);
-                    if (absDegreesModulo === 0) {
-                        // 軸に応じて基本色を薄くする
-                        if (axis === 'x') displayElement.style.color = '#ff9999';
-                        else if (axis === 'y') displayElement.style.color = '#99ff99';
-                        else displayElement.style.color = '#9999ff';
-                    } else {
-                        // 軸に応じて基本色を濃くする
-                        if (axis === 'x') displayElement.style.color = '#ff3333';
-                        else if (axis === 'y') displayElement.style.color = '#33ff33';
-                        else displayElement.style.color = '#3333ff';
-                    }
-                }
-            });
-        });
-    }
-
-    // カスタム矢印の初期回転角度を設定
-    initializeCustomArrowRotations() {
-        // 画像で表示されている角度を初期値として設定（度をラジアンに変換）
-        const initialRotations = {
-            'x_1': { x: -Math.PI, y: Math.PI / 2, z: -Math.PI / 2 },        // X+面: X:-180°, Y:90°, Z:-90°
-            'x_-1': { x: -Math.PI, y: Math.PI / 2, z: -Math.PI / 2 },       // X-面: X:-180°, Y:90°, Z:-90°
-            'y_1': { x: Math.PI, y: 0, z: -Math.PI / 2 },         // Y+面: X:180°, Y:0°, Z:-90°
-            'y_-1': { x: Math.PI, y: 0, z: -Math.PI / 2 },        // Y-面: X:180°, Y:0°, Z:-90°
-            'z_1': { x: -Math.PI / 2, y: -Math.PI / 2, z: 0 },    // Z+面: X:-90°, Y:-90°, Z:0°
-            'z_-1': { x: -Math.PI / 2, y: -Math.PI / 2, z: 0 }    // Z-面: X:-90°, Y:-90°, Z:0°
-        };
-        
-        // 初期値をMapに設定
-        Object.entries(initialRotations).forEach(([faceKey, rotation]) => {
-            this.customArrowRotations.set(faceKey, { ...rotation });
-        });
-        
-        console.log('カスタム矢印の初期回転角度を設定:', initialRotations);
-    }
-
-    // カスタム矢印をカメラの方向に向ける
-    updateArrowsToFaceCamera() {
-        if (!this.useCustomArrow || !this.customArrowModel || !this.faceHandles.length) return;
-
-        const cameraPosition = this.camera.position;
-        const trimBoxCenter = this.trimBox ? this.trimBox.position : new THREE.Vector3();
-        
-        this.faceHandles.forEach(handle => {
-            if (!handle.userData || handle.userData.type !== 'face') return;
-            
-            const faceData = handle.userData;
-            const arrowPosition = handle.position;
-            
-            // 矢印の子要素（カスタムOBJモデル）を取得
-            const customMesh = handle.children.find(child => child.type === 'Mesh');
-            if (!customMesh) return;
-            
-            // カスタム矢印の基本回転を取得
-            const faceKey = `${faceData.axis}_${faceData.direction}`;
-            const customRotation = this.customArrowRotations.get(faceKey) || { x: 0, y: 0, z: 0 };
-            
-            // カメラからトリミング箱の中心への方向ベクトル
-            const cameraToCenter = new THREE.Vector3()
-                .subVectors(trimBoxCenter, cameraPosition)
-                .normalize();
-            
-            // 面に応じた適切な軸でカメラに向ける回転を計算
-            let cameraFacingRotation = { x: 0, y: 0, z: 0 };
-            
-            if (faceData.axis === 'y') {
-                // Y面（上下）: Y軸を中心に回転してカメラに正対
-                // 上面(direction=1)と下面(direction=-1)で回転方向を調整
-                const angle = Math.atan2(cameraToCenter.x, cameraToCenter.z);
-                cameraFacingRotation.y = faceData.direction > 0 ? -angle : angle;
-            } else if (faceData.axis === 'x') {
-                // X面（左右）: X軸方向に固定、カメラに正対するようY軸回転のみ
-                const angle = Math.atan2(cameraToCenter.z, cameraToCenter.y);
-                cameraFacingRotation.y = faceData.direction > 0 ? -angle : angle + Math.PI;
-            } else if (faceData.axis === 'z') {
-                // Z面（前後）: Z軸方向に固定、Z軸を中心に回転してカメラに正対
-                const angle = Math.atan2(cameraToCenter.y, cameraToCenter.x);
-                cameraFacingRotation.z = faceData.direction > 0 ? angle : -angle;
-            }
-            
-            // 基本回転にカメラ向きの回転を加算
-            customMesh.rotation.set(
-                customRotation.x + cameraFacingRotation.x,
-                customRotation.y + cameraFacingRotation.y,
-                customRotation.z + cameraFacingRotation.z
-            );
-        });
-    }
     
-    createRotationAxisVisualizer(handle, faceData) {
-        // 回転軸の方向を決定
-        let axisDirection;
-        let axisColor;
-        
-        switch (faceData.axis) {
-            case 'x':
-                axisDirection = new THREE.Vector3(1, 0, 0); // X軸方向
-                axisColor = 0xff0000; // 赤
-                break;
-            case 'y':
-                axisDirection = new THREE.Vector3(0, 1, 0); // Y軸方向
-                axisColor = 0x00ff00; // 緑
-                break;
-            case 'z':
-                axisDirection = new THREE.Vector3(0, 0, 1); // Z軸方向
-                axisColor = 0x0000ff; // 青
-                break;
-        }
-        
-        // 回転軸の線を作成
-        const axisLength = 1.5;
-        const axisStart = handle.position.clone().add(axisDirection.clone().multiplyScalar(-axisLength/2));
-        const axisEnd = handle.position.clone().add(axisDirection.clone().multiplyScalar(axisLength/2));
-        
-        const geometry = new THREE.BufferGeometry().setFromPoints([axisStart, axisEnd]);
-        const material = new THREE.LineBasicMaterial({ 
-            color: axisColor, 
-            linewidth: 3,
-            transparent: true,
-            opacity: 0.8
-        });
-        
-        const axisLine = new THREE.Line(geometry, material);
-        axisLine.visible = false; // 初期は非表示
-        
-        // ハンドルに軸線を関連付け
-        handle.rotationAxisLine = axisLine;
-        this.scene.add(axisLine);
-    }
+
 }
 
 class RealtimePreview {
@@ -2170,8 +1952,11 @@ class RealtimePreview {
         this.originalModel = null;
         this.previewModel = null;
         this.outsideModel = null;
+        this.boundaryModel = null; // 境界点群用モデル
         this.outsideOpacity = 0.1; // 10%に変更
         this.showOutside = true;
+        this.showBoundary = true; // 境界点群表示フラグ（常時表示）
+        this.boundaryThreshold = 0.05; // 境界検出の閾値（箱からの距離）
     }
 
     setOriginalModel(model) {
@@ -2186,7 +1971,7 @@ class RealtimePreview {
 
         const trimBoxBounds = new THREE.Box3().setFromObject(trimBox);
         
-        // 既存のモデルをクリーンアップ（previewModelとoutsideModel両方）
+        // 既存のモデルをクリーンアップ（previewModel、outsideModel、boundaryModel）
         if (this.previewModel) {
             scene.remove(this.previewModel);
             this.previewModel.geometry.dispose();
@@ -2200,6 +1985,13 @@ class RealtimePreview {
             this.outsideModel.material.dispose();
             this.outsideModel = null;
         }
+        
+        if (this.boundaryModel) {
+            scene.remove(this.boundaryModel);
+            this.boundaryModel.geometry.dispose();
+            this.boundaryModel.material.dispose();
+            this.boundaryModel = null;
+        }
 
         const originalGeometry = this.originalModel.geometry;
         const positions = originalGeometry.attributes.position.array;
@@ -2210,8 +2002,10 @@ class RealtimePreview {
 
         const insidePositions = [];
         const outsidePositions = [];
+        const boundaryPositions = []; // 境界点群用
         const insideColors = [];
         const outsideColors = [];
+        const boundaryColors = []; // 境界点群の色（白色で固定）
 
         // トリミング箱の逆変換行列を計算（箱の回転を考慮）
         const trimBoxMatrix = new THREE.Matrix4();
@@ -2247,7 +2041,23 @@ class RealtimePreview {
                            Math.abs(trimBoxLocalPoint.y) <= trimBoxSize.y &&
                            Math.abs(trimBoxLocalPoint.z) <= trimBoxSize.z;
 
+            // 境界点群判定（各面からの距離を計算）
+            let isBoundary = false;
             if (isInside) {
+                const distanceToXMin = Math.abs(Math.abs(trimBoxLocalPoint.x) - trimBoxSize.x);
+                const distanceToYMin = Math.abs(Math.abs(trimBoxLocalPoint.y) - trimBoxSize.y);
+                const distanceToZMin = Math.abs(Math.abs(trimBoxLocalPoint.z) - trimBoxSize.z);
+                
+                // どれか一つの面に近い場合は境界点群
+                const minDistance = Math.min(distanceToXMin, distanceToYMin, distanceToZMin);
+                isBoundary = minDistance <= this.boundaryThreshold;
+            }
+
+            if (isBoundary && this.showBoundary) {
+                // 境界点群として分類（白色で表示）
+                boundaryPositions.push(positions[i], positions[i + 1], positions[i + 2]);
+                boundaryColors.push(1.0, 1.0, 1.0); // 白色（RGB = 1,1,1）
+            } else if (isInside) {
                 insidePositions.push(positions[i], positions[i + 1], positions[i + 2]);
                 if (colors) {
                     insideColors.push(colors[i], colors[i + 1], colors[i + 2]);
@@ -2288,6 +2098,27 @@ class RealtimePreview {
         this.previewModel.rotation.copy(this.originalModel.rotation);
         scene.add(this.previewModel);
         
+        // 境界点群モデルを作成（白色で表示）
+        if (boundaryPositions.length > 0 && this.showBoundary) {
+            const boundaryGeometry = new THREE.BufferGeometry();
+            boundaryGeometry.setAttribute('position', new THREE.Float32BufferAttribute(boundaryPositions, 3));
+            boundaryGeometry.setAttribute('color', new THREE.Float32BufferAttribute(boundaryColors, 3));
+            
+            const boundaryMaterial = new THREE.PointsMaterial({
+                size: 0.04, // 境界点群は少し大きく表示
+                vertexColors: true, // 白色を適用
+                transparent: true,
+                opacity: 0.9,
+                depthTest: false,  // 深度テストを無効にして常に最前面に表示
+                depthWrite: false  // 深度バッファに書き込まない
+            });
+            
+            this.boundaryModel = new THREE.Points(boundaryGeometry, boundaryMaterial);
+            this.boundaryModel.rotation.copy(this.originalModel.rotation);
+            this.boundaryModel.renderOrder = 999; // 高いレンダリング順序で最前面に表示（境界線より少し後ろ）
+            scene.add(this.boundaryModel);
+        }
+        
         // 箱の外側のモデルも作成（デフォルトでは非表示）
         if (outsidePositions.length > 0) {
             const outsideGeometry = new THREE.BufferGeometry();
@@ -2326,6 +2157,12 @@ class RealtimePreview {
             this.outsideModel.material.dispose();
             this.outsideModel = null;
         }
+        if (this.boundaryModel) {
+            scene.remove(this.boundaryModel);
+            this.boundaryModel.geometry.dispose();
+            this.boundaryModel.material.dispose();
+            this.boundaryModel = null;
+        }
         this.isPreviewMode = false;
     }
 
@@ -2342,6 +2179,22 @@ class RealtimePreview {
         if (this.outsideModel && this.outsideModel.material) {
             this.outsideModel.material.opacity = this.outsideOpacity;
         }
+    }
+
+    toggleBoundaryVisibility() {
+        this.showBoundary = !this.showBoundary;
+        if (this.boundaryModel) {
+            this.boundaryModel.visible = this.showBoundary;
+        }
+        return this.showBoundary;
+    }
+
+    setBoundaryThreshold(threshold) {
+        this.boundaryThreshold = Math.max(0.001, Math.min(0.2, threshold));
+    }
+
+    getBoundaryThreshold() {
+        return this.boundaryThreshold;
     }
 
     getOutsideOpacity() {
@@ -2667,6 +2520,7 @@ class PLYViewer {
         const toggleDisplayMode = document.getElementById('toggleDisplayMode');
         const toggleTrimBox = document.getElementById('toggleTrimBox');
         const toggleOutsideView = document.getElementById('toggleOutsideView');
+
         const executeTrim = document.getElementById('executeTrim');
         const resetModel = document.getElementById('resetModel');
         const resetCamera = document.getElementById('resetCamera');
@@ -2693,6 +2547,7 @@ class PLYViewer {
         toggleDisplayMode.addEventListener('click', () => this.toggleDisplayMode());
         toggleTrimBox.addEventListener('click', () => this.toggleTrimBox());
         toggleOutsideView.addEventListener('click', () => this.toggleOutsideView());
+
         
         executeTrim.addEventListener('click', () => this.executeTrim());
         resetModel.addEventListener('click', () => this.resetModel());
@@ -2700,10 +2555,9 @@ class PLYViewer {
 
         // 向き調整関連のイベントリスナー
         this.setupOrientationEventListeners();
-        
-        // カスタム矢印関連のイベントリスナー
-        this.setupCustomArrowEventListeners();
     }
+
+
 
     async loadPLYFile(file) {
         if (!file || !file.name.toLowerCase().endsWith('.ply')) {
@@ -3178,6 +3032,15 @@ class PLYViewer {
         }
     }
 
+
+
+    setBoundaryThreshold(threshold) {
+        if (this.realtimePreview) {
+            this.realtimePreview.setBoundaryThreshold(threshold);
+            this.updatePreview(); // 閾値変更時はプレビューを更新
+        }
+    }
+
     setTrimBoxColor(colorHex) {
         if (this.trimBoxManipulator) {
             this.trimBoxManipulator.setTrimBoxColor(colorHex);
@@ -3250,22 +3113,9 @@ class PLYViewer {
         return 0;
     }
 
-    // カスタム矢印の設定
-    setUseCustomArrow(useCustom) {
-        return this.trimBoxManipulator ? this.trimBoxManipulator.setUseCustomArrow(useCustom) : false;
-    }
 
-    isCustomArrowAvailable() {
-        return this.trimBoxManipulator ? this.trimBoxManipulator.isCustomArrowAvailable() : false;
-    }
 
-    setCustomArrowScale(scale) {
-        return this.trimBoxManipulator ? this.trimBoxManipulator.setCustomArrowScale(scale) : 1.0;
-    }
 
-    getCustomArrowScale() {
-        return this.trimBoxManipulator ? this.trimBoxManipulator.getCustomArrowScale() : 1.0;
-    }
 
     resetCameraPosition() {
         if (!this.currentModel) return;
@@ -3306,110 +3156,7 @@ class PLYViewer {
         document.getElementById('confirmOrientation').addEventListener('click', () => this.confirmOrientation());
     }
 
-    setupCustomArrowEventListeners() {
-        const toggleCustomArrow = document.getElementById('toggleCustomArrow');
 
-        if (toggleCustomArrow) {
-            toggleCustomArrow.addEventListener('click', () => {
-                const currentState = this.trimBoxManipulator ? this.trimBoxManipulator.useCustomArrow : false;
-                const newState = this.setUseCustomArrow(!currentState);
-                this.updateCustomArrowUI();
-            });
-        }
-
-        // data属性ベースの回転ボタンのイベントリスナー
-        document.addEventListener('click', (event) => {
-            const target = event.target;
-            
-            // 回転ボタンの処理
-            if (target.matches('[data-face][data-axis][data-angle]')) {
-                const faceKey = target.dataset.face;
-                const axis = target.dataset.axis;
-                const angle = parseFloat(target.dataset.angle) * Math.PI / 180; // 度をラジアンに変換
-                
-                if (this.trimBoxManipulator) {
-                    this.trimBoxManipulator.setCustomArrowRotation(faceKey, axis, angle);
-                }
-            }
-            
-            // 個別リセットボタンの処理
-            if (target.matches('[data-face][data-action="reset"]')) {
-                const faceKey = target.dataset.face;
-                
-                if (this.trimBoxManipulator) {
-                    this.trimBoxManipulator.resetCustomArrowRotation(faceKey);
-                }
-            }
-        });
-        
-        // 全体リセットボタン
-        const resetAllButton = document.getElementById('resetAllArrowRotations');
-        if (resetAllButton) {
-            resetAllButton.addEventListener('click', () => {
-                if (this.trimBoxManipulator) {
-                    this.trimBoxManipulator.resetAllCustomArrowRotations();
-                }
-            });
-        }
-
-        // 初期状態をチェック（少し遅延させてTrimBoxManipulatorの読み込み完了を待つ）
-        setTimeout(() => {
-            this.updateCustomArrowUI();
-            // 初期角度表示も更新
-            if (this.trimBoxManipulator) {
-                this.trimBoxManipulator.updateRotationDisplays();
-            }
-        }, 1000);
-    }
-
-    updateCustomArrowUI() {
-        const toggleCustomArrow = document.getElementById('toggleCustomArrow');
-        const customArrowStatus = document.getElementById('customArrowStatus');
-
-        if (!this.trimBoxManipulator) return;
-
-        const isAvailable = this.isCustomArrowAvailable();
-        const isUsing = this.trimBoxManipulator.useCustomArrow;
-
-        // ステータス表示を更新
-        if (customArrowStatus) {
-            if (isAvailable) {
-                customArrowStatus.textContent = isUsing ? 'アクティブ' : '利用可能';
-                customArrowStatus.style.color = isUsing ? '#00ff00' : '#ffff00';
-            } else {
-                customArrowStatus.textContent = '読み込みエラー';
-                customArrowStatus.style.color = '#ff0000';
-            }
-        }
-
-        // トグルボタンを更新
-        if (toggleCustomArrow) {
-            toggleCustomArrow.disabled = !isAvailable;
-            toggleCustomArrow.textContent = `カスタム矢印: ${isUsing ? 'ON' : 'OFF'}`;
-            toggleCustomArrow.className = `btn ${isUsing ? 'btn-secondary' : 'btn'}`;
-        }
-
-        // 回転コントロールも更新
-        this.updateArrowRotationUI();
-        
-        console.log('カスタム矢印UI更新:', { isAvailable, isUsing });
-    }
-
-    // 回転コントロールUIの更新（新規追加）
-    updateArrowRotationUI() {
-        const arrowRotationControls = document.getElementById('arrowRotationControls');
-        
-        if (!this.trimBoxManipulator || !arrowRotationControls) return;
-        
-        // カスタム矢印使用時のみ回転コントロールを表示
-        if (this.trimBoxManipulator.useCustomArrow) {
-            arrowRotationControls.style.display = 'block';
-            // 角度表示を更新
-            this.trimBoxManipulator.updateRotationDisplays();
-        } else {
-            arrowRotationControls.style.display = 'none';
-        }
-    }
 
     startOrientationMode() {
         this.isOrientationMode = true;
@@ -3519,73 +3266,82 @@ class PLYViewer {
     }
 
     setupArrowSizeSliders() {
+        console.log('円錐サイズスライダー設定開始');
+        
         // スライダー要素を取得
         const arrowOffsetSlider = document.getElementById('arrowOffsetSlider');
-        const arrowTipRadiusSlider = document.getElementById('arrowTipRadiusSlider');
-        const arrowTipHeightSlider = document.getElementById('arrowTipHeightSlider');
-        const arrowShaftRadiusSlider = document.getElementById('arrowShaftRadiusSlider');
-        const arrowShaftHeightSlider = document.getElementById('arrowShaftHeightSlider');
+        const coneRadiusSlider = document.getElementById('coneRadiusSlider');
+        const coneHeightSlider = document.getElementById('coneHeightSlider');
         
         // 値表示要素を取得
         const arrowOffsetValue = document.getElementById('arrowOffsetValue');
-        const arrowTipRadiusValue = document.getElementById('arrowTipRadiusValue');
-        const arrowTipHeightValue = document.getElementById('arrowTipHeightValue');
-        const arrowShaftRadiusValue = document.getElementById('arrowShaftRadiusValue');
-        const arrowShaftHeightValue = document.getElementById('arrowShaftHeightValue');
+        const coneRadiusValue = document.getElementById('coneRadiusValue');
+        const coneHeightValue = document.getElementById('coneHeightValue');
+
+        console.log('要素の存在確認:', {
+            arrowOffsetSlider: !!arrowOffsetSlider,
+            coneRadiusSlider: !!coneRadiusSlider,
+            coneHeightSlider: !!coneHeightSlider,
+            arrowOffsetValue: !!arrowOffsetValue,
+            coneRadiusValue: !!coneRadiusValue,
+            coneHeightValue: !!coneHeightValue
+        });
 
         // 要素が見つからない場合は警告
-        if (!arrowOffsetSlider || !arrowTipRadiusSlider || !arrowTipHeightSlider || 
-            !arrowShaftRadiusSlider || !arrowShaftHeightSlider) {
-            console.warn('矢印サイズスライダーが見つかりません');
+        if (!arrowOffsetSlider || !coneRadiusSlider || !coneHeightSlider) {
+            console.warn('円錐サイズスライダーが見つかりません');
             return;
         }
 
         // 始まり位置（箱からの距離）スライダー
         arrowOffsetSlider.addEventListener('input', (e) => {
-            const value = parseFloat(e.target.value);
-            arrowOffsetValue.textContent = value.toFixed(2);
-            if (this.trimBoxManipulator) {
-                this.trimBoxManipulator.setArrowOffset(value);
+            try {
+                const value = parseFloat(e.target.value);
+                if (arrowOffsetValue) arrowOffsetValue.textContent = value.toFixed(2);
+                if (this.trimBoxManipulator) {
+                    console.log('箱からの距離設定:', value);
+                    this.trimBoxManipulator.setArrowOffset(value);
+                } else {
+                    console.warn('trimBoxManipulatorが存在しません');
+                }
+            } catch (error) {
+                console.error('箱からの距離設定エラー:', error);
             }
         });
 
-        // 先端の大きさ（円錐の半径）スライダー
-        arrowTipRadiusSlider.addEventListener('input', (e) => {
-            const value = parseFloat(e.target.value);
-            arrowTipRadiusValue.textContent = value.toFixed(1);
-            if (this.trimBoxManipulator) {
-                this.trimBoxManipulator.setArrowTipRadius(value);
+        // 円錐の半径スライダー
+        coneRadiusSlider.addEventListener('input', (e) => {
+            try {
+                const value = parseFloat(e.target.value);
+                if (coneRadiusValue) coneRadiusValue.textContent = value.toFixed(3);
+                if (this.trimBoxManipulator) {
+                    console.log('円錐半径設定:', value);
+                    this.trimBoxManipulator.setConeRadius(value);
+                } else {
+                    console.warn('trimBoxManipulatorが存在しません');
+                }
+            } catch (error) {
+                console.error('円錐半径設定エラー:', error);
             }
         });
 
-        // 先端の高さ（円錐の高さ）スライダー
-        arrowTipHeightSlider.addEventListener('input', (e) => {
-            const value = parseFloat(e.target.value);
-            arrowTipHeightValue.textContent = value.toFixed(1);
-            if (this.trimBoxManipulator) {
-                this.trimBoxManipulator.setArrowTipHeight(value);
+        // 円錐の高さスライダー
+        coneHeightSlider.addEventListener('input', (e) => {
+            try {
+                const value = parseFloat(e.target.value);
+                if (coneHeightValue) coneHeightValue.textContent = value.toFixed(3);
+                if (this.trimBoxManipulator) {
+                    console.log('円錐高さ設定:', value);
+                    this.trimBoxManipulator.setConeHeight(value);
+                } else {
+                    console.warn('trimBoxManipulatorが存在しません');
+                }
+            } catch (error) {
+                console.error('円錐高さ設定エラー:', error);
             }
         });
 
-        // 線の太さ（円柱の半径）スライダー
-        arrowShaftRadiusSlider.addEventListener('input', (e) => {
-            const value = parseFloat(e.target.value);
-            arrowShaftRadiusValue.textContent = value.toFixed(1);
-            if (this.trimBoxManipulator) {
-                this.trimBoxManipulator.setArrowShaftRadius(value);
-            }
-        });
-
-        // 線の長さ（円柱の高さ）スライダー
-        arrowShaftHeightSlider.addEventListener('input', (e) => {
-            const value = parseFloat(e.target.value);
-            arrowShaftHeightValue.textContent = value.toFixed(1);
-            if (this.trimBoxManipulator) {
-                this.trimBoxManipulator.setArrowShaftHeight(value);
-            }
-        });
-
-        console.log('矢印サイズスライダー設定完了（個別パラメータ対応）');
+        console.log('円錐サイズスライダー設定完了');
     }
 
     onWindowResize() {
@@ -3607,11 +3363,6 @@ class PLYViewer {
             
             if (this.trimBoxManipulator.isDragging) {
                 this.updatePreview();
-            }
-            
-            // 矢印をカメラの方向に向ける
-            if (this.trimBoxManipulator) {
-                this.trimBoxManipulator.updateArrowsToFaceCamera();
             }
         }
         

@@ -67,14 +67,7 @@
             background: #888;
         }
 
-        .arrow-face-control {
-            margin-bottom: 8px !important;
-            padding: 6px !important;
-        }
-        
-        .arrow-face-control:last-of-type {
-            margin-bottom: 12px !important;
-        }
+
         
         #controls::after {
             content: '';
@@ -552,6 +545,7 @@
                     箱外モデル表示
                 </button>
 
+
                 <button class="btn btn-danger" id="executeTrim" disabled>
                     トリミング実行
                 </button>
@@ -574,156 +568,9 @@
 
 
 
-            <div class="control-group">
-                <h3>カスタム矢印設定</h3>
-                <button class="btn btn-secondary" id="toggleCustomArrow" disabled>
-                    カスタム矢印: ON
-                </button>
-                <div class="info-item">
-                    <span class="info-label">カスタム矢印:</span>
-                    <span class="info-value" id="customArrowStatus">読み込み中...</span>
-                </div>
-                
-                <div id="arrowRotationControls" style="display: none; margin-top: 15px;">
-                    <h4 style="margin-bottom: 15px; color: #ccc; font-size: 14px;">矢印向き調整</h4>
-                    
-                    <!-- X+面 -->
-                    <div class="arrow-face-control" style="margin-bottom: 12px; padding: 8px; background: rgba(255,255,255,0.05); border-radius: 4px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                            <span style="color: #ccc; font-size: 12px; font-weight: bold;">X+面</span>
-                            <div style="display: flex; gap: 8px; font-size: 10px;">
-                                <span>X:<span id="rotation-x_1-x" style="color: #ff6666;">0°</span></span>
-                                <span>Y:<span id="rotation-x_1-y" style="color: #66ff66;">0°</span></span>
-                                <span>Z:<span id="rotation-x_1-z" style="color: #6666ff;">0°</span></span>
-                            </div>
-                        </div>
-                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;">
-                            <button class="orientation-btn" data-face="x_1" data-axis="x" data-angle="90" style="padding: 6px; font-size: 10px;">X+90°</button>
-                            <button class="orientation-btn" data-face="x_1" data-axis="y" data-angle="90" style="padding: 6px; font-size: 10px;">Y+90°</button>
-                            <button class="orientation-btn" data-face="x_1" data-axis="z" data-angle="90" style="padding: 6px; font-size: 10px;">Z+90°</button>
-                            <button class="orientation-btn" data-face="x_1" data-axis="x" data-angle="-90" style="padding: 6px; font-size: 10px;">X-90°</button>
-                            <button class="orientation-btn" data-face="x_1" data-axis="y" data-angle="-90" style="padding: 6px; font-size: 10px;">Y-90°</button>
-                            <button class="orientation-btn" data-face="x_1" data-axis="z" data-angle="-90" style="padding: 6px; font-size: 10px;">Z-90°</button>
-                        </div>
-                        <button class="btn btn-secondary" data-face="x_1" data-action="reset" style="font-size: 10px; padding: 4px 8px; margin-top: 4px; width: 100%;">リセット</button>
-                    </div>
 
-                    <!-- X-面 -->
-                    <div class="arrow-face-control" style="margin-bottom: 12px; padding: 8px; background: rgba(255,255,255,0.05); border-radius: 4px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                            <span style="color: #ccc; font-size: 12px; font-weight: bold;">X-面</span>
-                            <div style="display: flex; gap: 8px; font-size: 10px;">
-                                <span>X:<span id="rotation-x_-1-x" style="color: #ff6666;">0°</span></span>
-                                <span>Y:<span id="rotation-x_-1-y" style="color: #66ff66;">0°</span></span>
-                                <span>Z:<span id="rotation-x_-1-z" style="color: #6666ff;">0°</span></span>
-                            </div>
-                        </div>
-                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;">
-                            <button class="orientation-btn" data-face="x_-1" data-axis="x" data-angle="90" style="padding: 6px; font-size: 10px;">X+90°</button>
-                            <button class="orientation-btn" data-face="x_-1" data-axis="y" data-angle="90" style="padding: 6px; font-size: 10px;">Y+90°</button>
-                            <button class="orientation-btn" data-face="x_-1" data-axis="z" data-angle="90" style="padding: 6px; font-size: 10px;">Z+90°</button>
-                            <button class="orientation-btn" data-face="x_-1" data-axis="x" data-angle="-90" style="padding: 6px; font-size: 10px;">X-90°</button>
-                            <button class="orientation-btn" data-face="x_-1" data-axis="y" data-angle="-90" style="padding: 6px; font-size: 10px;">Y-90°</button>
-                            <button class="orientation-btn" data-face="x_-1" data-axis="z" data-angle="-90" style="padding: 6px; font-size: 10px;">Z-90°</button>
-                        </div>
-                        <button class="btn btn-secondary" data-face="x_-1" data-action="reset" style="font-size: 10px; padding: 4px 8px; margin-top: 4px; width: 100%;">リセット</button>
-                    </div>
 
-                    <!-- Y+面 -->
-                    <div class="arrow-face-control" style="margin-bottom: 12px; padding: 8px; background: rgba(255,255,255,0.05); border-radius: 4px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                            <span style="color: #ccc; font-size: 12px; font-weight: bold;">Y+面</span>
-                            <div style="display: flex; gap: 8px; font-size: 10px;">
-                                <span>X:<span id="rotation-y_1-x" style="color: #ff6666;">0°</span></span>
-                                <span>Y:<span id="rotation-y_1-y" style="color: #66ff66;">0°</span></span>
-                                <span>Z:<span id="rotation-y_1-z" style="color: #6666ff;">0°</span></span>
-                            </div>
-                        </div>
-                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;">
-                            <button class="orientation-btn" data-face="y_1" data-axis="x" data-angle="90" style="padding: 6px; font-size: 10px;">X+90°</button>
-                            <button class="orientation-btn" data-face="y_1" data-axis="y" data-angle="90" style="padding: 6px; font-size: 10px;">Y+90°</button>
-                            <button class="orientation-btn" data-face="y_1" data-axis="z" data-angle="90" style="padding: 6px; font-size: 10px;">Z+90°</button>
-                            <button class="orientation-btn" data-face="y_1" data-axis="x" data-angle="-90" style="padding: 6px; font-size: 10px;">X-90°</button>
-                            <button class="orientation-btn" data-face="y_1" data-axis="y" data-angle="-90" style="padding: 6px; font-size: 10px;">Y-90°</button>
-                            <button class="orientation-btn" data-face="y_1" data-axis="z" data-angle="-90" style="padding: 6px; font-size: 10px;">Z-90°</button>
-                        </div>
-                        <button class="btn btn-secondary" data-face="y_1" data-action="reset" style="font-size: 10px; padding: 4px 8px; margin-top: 4px; width: 100%;">リセット</button>
-                    </div>
 
-                    <!-- Y-面 -->
-                    <div class="arrow-face-control" style="margin-bottom: 12px; padding: 8px; background: rgba(255,255,255,0.05); border-radius: 4px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                            <span style="color: #ccc; font-size: 12px; font-weight: bold;">Y-面</span>
-                            <div style="display: flex; gap: 8px; font-size: 10px;">
-                                <span>X:<span id="rotation-y_-1-x" style="color: #ff6666;">0°</span></span>
-                                <span>Y:<span id="rotation-y_-1-y" style="color: #66ff66;">0°</span></span>
-                                <span>Z:<span id="rotation-y_-1-z" style="color: #6666ff;">0°</span></span>
-                            </div>
-                        </div>
-                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;">
-                            <button class="orientation-btn" data-face="y_-1" data-axis="x" data-angle="90" style="padding: 6px; font-size: 10px;">X+90°</button>
-                            <button class="orientation-btn" data-face="y_-1" data-axis="y" data-angle="90" style="padding: 6px; font-size: 10px;">Y+90°</button>
-                            <button class="orientation-btn" data-face="y_-1" data-axis="z" data-angle="90" style="padding: 6px; font-size: 10px;">Z+90°</button>
-                            <button class="orientation-btn" data-face="y_-1" data-axis="x" data-angle="-90" style="padding: 6px; font-size: 10px;">X-90°</button>
-                            <button class="orientation-btn" data-face="y_-1" data-axis="y" data-angle="-90" style="padding: 6px; font-size: 10px;">Y-90°</button>
-                            <button class="orientation-btn" data-face="y_-1" data-axis="z" data-angle="-90" style="padding: 6px; font-size: 10px;">Z-90°</button>
-                        </div>
-                        <button class="btn btn-secondary" data-face="y_-1" data-action="reset" style="font-size: 10px; padding: 4px 8px; margin-top: 4px; width: 100%;">リセット</button>
-                    </div>
-
-                    <!-- Z+面 -->
-                    <div class="arrow-face-control" style="margin-bottom: 12px; padding: 8px; background: rgba(255,255,255,0.05); border-radius: 4px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                            <span style="color: #ccc; font-size: 12px; font-weight: bold;">Z+面</span>
-                            <div style="display: flex; gap: 8px; font-size: 10px;">
-                                <span>X:<span id="rotation-z_1-x" style="color: #ff6666;">0°</span></span>
-                                <span>Y:<span id="rotation-z_1-y" style="color: #66ff66;">0°</span></span>
-                                <span>Z:<span id="rotation-z_1-z" style="color: #6666ff;">0°</span></span>
-                            </div>
-                        </div>
-                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;">
-                            <button class="orientation-btn" data-face="z_1" data-axis="x" data-angle="90" style="padding: 6px; font-size: 10px;">X+90°</button>
-                            <button class="orientation-btn" data-face="z_1" data-axis="y" data-angle="90" style="padding: 6px; font-size: 10px;">Y+90°</button>
-                            <button class="orientation-btn" data-face="z_1" data-axis="z" data-angle="90" style="padding: 6px; font-size: 10px;">Z+90°</button>
-                            <button class="orientation-btn" data-face="z_1" data-axis="x" data-angle="-90" style="padding: 6px; font-size: 10px;">X-90°</button>
-                            <button class="orientation-btn" data-face="z_1" data-axis="y" data-angle="-90" style="padding: 6px; font-size: 10px;">Y-90°</button>
-                            <button class="orientation-btn" data-face="z_1" data-axis="z" data-angle="-90" style="padding: 6px; font-size: 10px;">Z-90°</button>
-                        </div>
-                        <button class="btn btn-secondary" data-face="z_1" data-action="reset" style="font-size: 10px; padding: 4px 8px; margin-top: 4px; width: 100%;">リセット</button>
-                    </div>
-
-                    <!-- Z-面 -->
-                    <div class="arrow-face-control" style="margin-bottom: 12px; padding: 8px; background: rgba(255,255,255,0.05); border-radius: 4px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                            <span style="color: #ccc; font-size: 12px; font-weight: bold;">Z-面</span>
-                            <div style="display: flex; gap: 8px; font-size: 10px;">
-                                <span>X:<span id="rotation-z_-1-x" style="color: #ff6666;">0°</span></span>
-                                <span>Y:<span id="rotation-z_-1-y" style="color: #66ff66;">0°</span></span>
-                                <span>Z:<span id="rotation-z_-1-z" style="color: #6666ff;">0°</span></span>
-                            </div>
-                        </div>
-                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;">
-                            <button class="orientation-btn" data-face="z_-1" data-axis="x" data-angle="90" style="padding: 6px; font-size: 10px;">X+90°</button>
-                            <button class="orientation-btn" data-face="z_-1" data-axis="y" data-angle="90" style="padding: 6px; font-size: 10px;">Y+90°</button>
-                            <button class="orientation-btn" data-face="z_-1" data-axis="z" data-angle="90" style="padding: 6px; font-size: 10px;">Z+90°</button>
-                            <button class="orientation-btn" data-face="z_-1" data-axis="x" data-angle="-90" style="padding: 6px; font-size: 10px;">X-90°</button>
-                            <button class="orientation-btn" data-face="z_-1" data-axis="y" data-angle="-90" style="padding: 6px; font-size: 10px;">Y-90°</button>
-                            <button class="orientation-btn" data-face="z_-1" data-axis="z" data-angle="-90" style="padding: 6px; font-size: 10px;">Z-90°</button>
-                        </div>
-                        <button class="btn btn-secondary" data-face="z_-1" data-action="reset" style="font-size: 10px; padding: 4px 8px; margin-top: 4px; width: 100%;">リセット</button>
-                    </div>
-
-                    <!-- 全体リセット -->
-                    <div style="margin-top: 15px; text-align: center; margin-bottom: 60px;">
-                        <button class="btn btn-secondary" id="resetAllArrowRotations" style="font-size: 12px; padding: 8px 16px;">
-                            全ての向きをリセット
-                        </button>
-                    </div>
-                    
-                    <!-- スクロール用の余白 -->
-                    <div style="height: 100px;"></div>
-                </div>
-            </div>
 
             <div class="control-group">
                 <h3>トリミング箱座標</h3>
@@ -740,6 +587,8 @@
                     <span class="info-value" id="trimBoxZ">-</span>
                 </div>
             </div>
+
+
         </div>
     </div>
 
