@@ -2002,8 +2002,8 @@ class TrimBoxManipulator {
     initializeCustomArrowRotations() {
         // 画像で表示されている角度を初期値として設定（度をラジアンに変換）
         const initialRotations = {
-            'x_1': { x: -Math.PI, y: 0, z: -Math.PI / 2 },        // X+面: X:-180°, Y:0°, Z:-90°
-            'x_-1': { x: -Math.PI, y: 0, z: -Math.PI / 2 },       // X-面: X:-180°, Y:0°, Z:-90°
+            'x_1': { x: -Math.PI, y: Math.PI / 2, z: -Math.PI / 2 },        // X+面: X:-180°, Y:90°, Z:-90°
+            'x_-1': { x: -Math.PI, y: Math.PI / 2, z: -Math.PI / 2 },       // X-面: X:-180°, Y:90°, Z:-90°
             'y_1': { x: Math.PI, y: 0, z: -Math.PI / 2 },         // Y+面: X:180°, Y:0°, Z:-90°
             'y_-1': { x: Math.PI, y: 0, z: -Math.PI / 2 },        // Y-面: X:180°, Y:0°, Z:-90°
             'z_1': { x: -Math.PI / 2, y: -Math.PI / 2, z: 0 },    // Z+面: X:-90°, Y:-90°, Z:0°
@@ -2055,7 +2055,7 @@ class TrimBoxManipulator {
             } else if (faceData.axis === 'x') {
                 // X面（左右）: X軸方向に固定、カメラに正対するようY軸回転のみ
                 const angle = Math.atan2(cameraToCenter.z, cameraToCenter.y);
-                cameraFacingRotation.y = faceData.direction > 0 ? angle : angle + Math.PI;
+                cameraFacingRotation.y = faceData.direction > 0 ? -angle : angle + Math.PI;
             } else if (faceData.axis === 'z') {
                 // Z面（前後）: Z軸方向に固定、カメラに正対するようY軸回転のみ
                 const angle = Math.atan2(cameraToCenter.x, cameraToCenter.y);
