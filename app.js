@@ -2057,9 +2057,7 @@ class TrimBoxManipulator {
                 const angle = Math.atan2(cameraToCenter.z, cameraToCenter.y);
                 cameraFacingRotation.y = faceData.direction > 0 ? -angle : angle + Math.PI;
             } else if (faceData.axis === 'z') {
-                // Z面（前後）: Z軸方向に固定、カメラに正対するようY軸回転のみ
-                const angle = Math.atan2(cameraToCenter.x, cameraToCenter.y);
-                cameraFacingRotation.y = faceData.direction > 0 ? -angle : -(angle + Math.PI);
+                // Z面（前後）: Z軸方向に固定、正対回転なし
             }
             
             // 基本回転にカメラ向きの回転を加算
