@@ -60,8 +60,14 @@ class TrimBoxManipulator {
         // OBJモデル用
         this.customArrowModel = null; // カスタムOBJモデル
         this.useCustomArrow = false;  // カスタム矢印を使用するかのフラグ
-        this.customArrowScale = 1.0;  // カスタム矢印のスケール
+        this.customArrowScale = 6.0;  // カスタム矢印のスケール（6倍に変更）
         this.objLoader = new OBJLoader(); // OBJローダー
+        
+        // カスタム矢印の個別回転（面ごと）
+        this.customArrowRotations = new Map(); // キー: 'axis_direction' (例: 'x_1', 'y_-1'), 値: {x, y, z}回転角度
+        
+        // 初期回転角度を設定
+        this.initializeCustomArrowRotations();
         
         this.raycaster = new THREE.Raycaster();
         // Lineのレイキャスト判定を厳密にする
@@ -271,7 +277,7 @@ class TrimBoxManipulator {
         // 面ハンドルを作成（初期は非表示）
         facePositions.forEach(handleData => {
             // 新しい矢印Groupを作成（clone()ではなく新規作成）
-            const handle = this.createArrowGeometry();
+            const handle = this.createArrowGeometry(handleData);
             handle.position.copy(handleData.pos);
             handle.userData = handleData;
             handle.visible = false; // 初期は非表示
@@ -328,7 +334,7 @@ class TrimBoxManipulator {
         this.createRotationAxes();
     }
 
-    createArrowGeometry() {
+    createArrowGeometry(faceData = null) {
         // カスタムOBJモデルが利用可能な場合はそれを使用
         if (this.useCustomArrow && this.customArrowModel) {
             const arrowGroup = new THREE.Group();
@@ -340,9 +346,16 @@ class TrimBoxManipulator {
             // カスタムスケールを適用
             customMesh.scale.setScalar(this.customArrowScale);
             
-            // モデルの向きを調整（必要に応じて）
-            // OBJモデルのデフォルト向きがY軸上向きでない場合は回転
-            // customMesh.rotation.x = Math.PI / 2; // 必要に応じてコメントアウトを解除
+            // 面固有のカスタム回転を適用
+            if (faceData) {
+                const faceKey = `${faceData.axis}_${faceData.direction}`;
+                const customRotation = this.customArrowRotations.get(faceKey);
+                if (customRotation) {
+                    customMesh.rotation.x += customRotation.x;
+                    customMesh.rotation.y += customRotation.y;
+                    customMesh.rotation.z += customRotation.z;
+                }
+            }
             
             arrowGroup.add(customMesh);
             
@@ -691,6 +704,7 @@ class TrimBoxManipulator {
         if (this.selectedFace) {
             this.selectedFace.visible = false;
             this.selectedFace = null;
+            
             console.log('面選択を解除');
         }
     }
@@ -1830,8 +1844,8 @@ class TrimBoxManipulator {
             const shouldBeVisible = this.selectedFace !== null;
             
             facePositions.forEach(handleData => {
-                // 新しい矢印Groupを作成
-                const handle = this.createArrowGeometry();
+                // 新しい矢印Groupを作成（面データを渡す）
+                const handle = this.createArrowGeometry(handleData);
                 handle.position.copy(handleData.pos);
                 handle.userData = handleData;
                 handle.visible = shouldBeVisible; // 現在の表示状態を保持
@@ -1892,6 +1906,169 @@ class TrimBoxManipulator {
     // カスタム矢印の現在のスケールを取得
     getCustomArrowScale() {
         return this.customArrowScale;
+    }
+
+    // カスタム矢印の回転UI更新
+    updateArrowRotationUI() {
+        if (window.plyViewer && window.plyViewer.updateArrowRotationUI) {
+            window.plyViewer.updateArrowRotationUI();
+        }
+    }
+
+    // カスタム矢印の個別回転を設定
+    setCustomArrowRotation(faceKey, axis, angle) {
+        if (!this.customArrowRotations.has(faceKey)) {
+            this.customArrowRotations.set(faceKey, { x: 0, y: 0, z: 0 });
+        }
+        
+        const rotation = this.customArrowRotations.get(faceKey);
+        rotation[axis] += angle;
+        
+        // 矢印を再作成して回転を反映
+        this.updateArrowSizes();
+        
+        // 角度表示を更新
+        this.updateRotationDisplays();
+        
+        console.log(`カスタム矢印回転設定: ${faceKey}, ${axis}軸: ${(rotation[axis] * 180 / Math.PI).toFixed(0)}度`);
+    }
+
+    // カスタム矢印の個別回転をリセット
+    resetCustomArrowRotation(faceKey) {
+        if (this.customArrowRotations.has(faceKey)) {
+            this.customArrowRotations.set(faceKey, { x: 0, y: 0, z: 0 });
+            
+            // 矢印を再作成して回転を反映
+            this.updateArrowSizes();
+            
+            // 角度表示を更新
+            this.updateRotationDisplays();
+            
+            console.log(`カスタム矢印回転リセット: ${faceKey}`);
+        }
+    }
+
+    // 全てのカスタム矢印回転をリセット
+    resetAllCustomArrowRotations() {
+        const faceKeys = ['x_1', 'x_-1', 'y_1', 'y_-1', 'z_1', 'z_-1'];
+        
+        faceKeys.forEach(faceKey => {
+            this.customArrowRotations.set(faceKey, { x: 0, y: 0, z: 0 });
+        });
+        
+        // 矢印を再作成して回転を反映
+        this.updateArrowSizes();
+        
+        // 角度表示を更新
+        this.updateRotationDisplays();
+        
+        console.log('全てのカスタム矢印回転をリセット');
+    }
+
+        // 回転角度表示を更新
+    updateRotationDisplays() {
+        const faceKeys = ['x_1', 'x_-1', 'y_1', 'y_-1', 'z_1', 'z_-1'];
+        const axes = ['x', 'y', 'z'];
+        
+        faceKeys.forEach(faceKey => {
+            const rotation = this.customArrowRotations.get(faceKey) || { x: 0, y: 0, z: 0 };
+            
+            // 各軸の角度を個別に表示
+            axes.forEach(axis => {
+                const displayElement = document.getElementById(`rotation-${faceKey}-${axis}`);
+                if (displayElement) {
+                    const degrees = Math.round(rotation[axis] * 180 / Math.PI);
+                    displayElement.textContent = `${degrees}°`;
+                    
+                    // 角度に応じて色の透明度を変更（0度は薄く、回転があると濃く）
+                    const absDegreesModulo = Math.abs(degrees % 360);
+                    if (absDegreesModulo === 0) {
+                        // 軸に応じて基本色を薄くする
+                        if (axis === 'x') displayElement.style.color = '#ff9999';
+                        else if (axis === 'y') displayElement.style.color = '#99ff99';
+                        else displayElement.style.color = '#9999ff';
+                    } else {
+                        // 軸に応じて基本色を濃くする
+                        if (axis === 'x') displayElement.style.color = '#ff3333';
+                        else if (axis === 'y') displayElement.style.color = '#33ff33';
+                        else displayElement.style.color = '#3333ff';
+                    }
+                }
+            });
+        });
+    }
+
+    // カスタム矢印の初期回転角度を設定
+    initializeCustomArrowRotations() {
+        // 画像で表示されている角度を初期値として設定（度をラジアンに変換）
+        const initialRotations = {
+            'x_1': { x: -Math.PI, y: 0, z: -Math.PI / 2 },        // X+面: X:-180°, Y:0°, Z:-90°
+            'x_-1': { x: -Math.PI, y: 0, z: -Math.PI / 2 },       // X-面: X:-180°, Y:0°, Z:-90°
+            'y_1': { x: Math.PI, y: 0, z: -Math.PI / 2 },         // Y+面: X:180°, Y:0°, Z:-90°
+            'y_-1': { x: Math.PI, y: 0, z: -Math.PI / 2 },        // Y-面: X:180°, Y:0°, Z:-90°
+            'z_1': { x: -Math.PI / 2, y: -Math.PI / 2, z: 0 },    // Z+面: X:-90°, Y:-90°, Z:0°
+            'z_-1': { x: -Math.PI / 2, y: -Math.PI / 2, z: 0 }    // Z-面: X:-90°, Y:-90°, Z:0°
+        };
+        
+        // 初期値をMapに設定
+        Object.entries(initialRotations).forEach(([faceKey, rotation]) => {
+            this.customArrowRotations.set(faceKey, { ...rotation });
+        });
+        
+        console.log('カスタム矢印の初期回転角度を設定:', initialRotations);
+    }
+
+    // カスタム矢印をカメラの方向に向ける
+    updateArrowsToFaceCamera() {
+        if (!this.useCustomArrow || !this.customArrowModel || !this.faceHandles.length) return;
+
+        const cameraPosition = this.camera.position;
+        const trimBoxCenter = this.trimBox ? this.trimBox.position : new THREE.Vector3();
+        
+        this.faceHandles.forEach(handle => {
+            if (!handle.userData || handle.userData.type !== 'face') return;
+            
+            const faceData = handle.userData;
+            const arrowPosition = handle.position;
+            
+            // 矢印の子要素（カスタムOBJモデル）を取得
+            const customMesh = handle.children.find(child => child.type === 'Mesh');
+            if (!customMesh) return;
+            
+            // カスタム矢印の基本回転を取得
+            const faceKey = `${faceData.axis}_${faceData.direction}`;
+            const customRotation = this.customArrowRotations.get(faceKey) || { x: 0, y: 0, z: 0 };
+            
+            // カメラからトリミング箱の中心への方向ベクトル
+            const cameraToCenter = new THREE.Vector3()
+                .subVectors(trimBoxCenter, cameraPosition)
+                .normalize();
+            
+            // 面に応じた適切な軸でカメラに向ける回転を計算
+            let cameraFacingRotation = { x: 0, y: 0, z: 0 };
+            
+            if (faceData.axis === 'y') {
+                // Y面（上下）: Y軸を中心に回転してカメラに正対
+                // 上面(direction=1)と下面(direction=-1)で回転方向を調整
+                const angle = Math.atan2(cameraToCenter.x, cameraToCenter.z);
+                cameraFacingRotation.y = faceData.direction > 0 ? -angle : angle;
+            } else if (faceData.axis === 'x') {
+                // X面（左右）: X軸方向に固定、カメラに正対するようY軸回転のみ
+                const angle = Math.atan2(cameraToCenter.z, cameraToCenter.y);
+                cameraFacingRotation.y = faceData.direction > 0 ? angle : angle + Math.PI;
+            } else if (faceData.axis === 'z') {
+                // Z面（前後）: Z軸方向に固定、カメラに正対するようY軸回転のみ
+                const angle = Math.atan2(cameraToCenter.x, cameraToCenter.y);
+                cameraFacingRotation.y = faceData.direction > 0 ? -angle : -(angle + Math.PI);
+            }
+            
+            // 基本回転にカメラ向きの回転を加算
+            customMesh.rotation.set(
+                customRotation.x + cameraFacingRotation.x,
+                customRotation.y + cameraFacingRotation.y,
+                customRotation.z + cameraFacingRotation.z
+            );
+        });
     }
 }
 
@@ -3037,19 +3214,7 @@ class PLYViewer {
     }
 
     setupCustomArrowEventListeners() {
-        // カスタム矢印スケールスライダー
-        const customArrowScaleSlider = document.getElementById('customArrowScaleSlider');
-        const customArrowScaleValue = document.getElementById('customArrowScaleValue');
         const toggleCustomArrow = document.getElementById('toggleCustomArrow');
-        const customArrowStatus = document.getElementById('customArrowStatus');
-
-        if (customArrowScaleSlider && customArrowScaleValue) {
-            customArrowScaleSlider.addEventListener('input', (e) => {
-                const value = parseFloat(e.target.value);
-                customArrowScaleValue.textContent = value.toFixed(1);
-                this.setCustomArrowScale(value);
-            });
-        }
 
         if (toggleCustomArrow) {
             toggleCustomArrow.addEventListener('click', () => {
@@ -3059,22 +3224,59 @@ class PLYViewer {
             });
         }
 
+        // data属性ベースの回転ボタンのイベントリスナー
+        document.addEventListener('click', (event) => {
+            const target = event.target;
+            
+            // 回転ボタンの処理
+            if (target.matches('[data-face][data-axis][data-angle]')) {
+                const faceKey = target.dataset.face;
+                const axis = target.dataset.axis;
+                const angle = parseFloat(target.dataset.angle) * Math.PI / 180; // 度をラジアンに変換
+                
+                if (this.trimBoxManipulator) {
+                    this.trimBoxManipulator.setCustomArrowRotation(faceKey, axis, angle);
+                }
+            }
+            
+            // 個別リセットボタンの処理
+            if (target.matches('[data-face][data-action="reset"]')) {
+                const faceKey = target.dataset.face;
+                
+                if (this.trimBoxManipulator) {
+                    this.trimBoxManipulator.resetCustomArrowRotation(faceKey);
+                }
+            }
+        });
+        
+        // 全体リセットボタン
+        const resetAllButton = document.getElementById('resetAllArrowRotations');
+        if (resetAllButton) {
+            resetAllButton.addEventListener('click', () => {
+                if (this.trimBoxManipulator) {
+                    this.trimBoxManipulator.resetAllCustomArrowRotations();
+                }
+            });
+        }
+
         // 初期状態をチェック（少し遅延させてTrimBoxManipulatorの読み込み完了を待つ）
         setTimeout(() => {
             this.updateCustomArrowUI();
+            // 初期角度表示も更新
+            if (this.trimBoxManipulator) {
+                this.trimBoxManipulator.updateRotationDisplays();
+            }
         }, 1000);
     }
 
     updateCustomArrowUI() {
         const toggleCustomArrow = document.getElementById('toggleCustomArrow');
         const customArrowStatus = document.getElementById('customArrowStatus');
-        const customArrowScaleSlider = document.getElementById('customArrowScaleSlider');
 
         if (!this.trimBoxManipulator) return;
 
         const isAvailable = this.isCustomArrowAvailable();
         const isUsing = this.trimBoxManipulator.useCustomArrow;
-        const currentScale = this.getCustomArrowScale();
 
         // ステータス表示を更新
         if (customArrowStatus) {
@@ -3094,14 +3296,26 @@ class PLYViewer {
             toggleCustomArrow.className = `btn ${isUsing ? 'btn-secondary' : 'btn'}`;
         }
 
-        // スライダーを更新
-        if (customArrowScaleSlider) {
-            customArrowScaleSlider.disabled = !isAvailable || !isUsing;
-            customArrowScaleSlider.value = currentScale;
-            document.getElementById('customArrowScaleValue').textContent = currentScale.toFixed(1);
-        }
+        // 回転コントロールも更新
+        this.updateArrowRotationUI();
+        
+        console.log('カスタム矢印UI更新:', { isAvailable, isUsing });
+    }
 
-        console.log('カスタム矢印UI更新:', { isAvailable, isUsing, currentScale });
+    // 回転コントロールUIの更新（新規追加）
+    updateArrowRotationUI() {
+        const arrowRotationControls = document.getElementById('arrowRotationControls');
+        
+        if (!this.trimBoxManipulator || !arrowRotationControls) return;
+        
+        // カスタム矢印使用時のみ回転コントロールを表示
+        if (this.trimBoxManipulator.useCustomArrow) {
+            arrowRotationControls.style.display = 'block';
+            // 角度表示を更新
+            this.trimBoxManipulator.updateRotationDisplays();
+        } else {
+            arrowRotationControls.style.display = 'none';
+        }
     }
 
     startOrientationMode() {
@@ -3300,6 +3514,11 @@ class PLYViewer {
             
             if (this.trimBoxManipulator.isDragging) {
                 this.updatePreview();
+            }
+            
+            // 矢印をカメラの方向に向ける
+            if (this.trimBoxManipulator) {
+                this.trimBoxManipulator.updateArrowsToFaceCamera();
             }
         }
         
