@@ -197,6 +197,11 @@ class TrimBoxManipulator {
         this.boxHelper.position.copy(modelCenter);
         this.scene.add(this.boxHelper);
         
+        // XYZ軸ヘルパーを追加
+        this.axesHelper = new THREE.AxesHelper(2);
+        this.axesHelper.position.copy(modelCenter);
+        this.scene.add(this.axesHelper);
+        
         // 初期の3D空間でのサイズと位置を保存
         this.fixedBoxSize = boxSize;
         this.targetPosition = modelCenter.clone();
@@ -1632,6 +1637,11 @@ class TrimBoxManipulator {
             this.trimBox = null;
         }
         
+        if (this.axesHelper) {
+            this.scene.remove(this.axesHelper);
+            this.axesHelper = null;
+        }
+        
         if (this.boxHelper) {
             this.scene.remove(this.boxHelper);
             this.boxHelper.geometry.dispose();
@@ -1681,6 +1691,9 @@ class TrimBoxManipulator {
         // 箱のサイズを更新
         this.scene.remove(this.trimBox);
         this.scene.remove(this.boxHelper);
+        if (this.axesHelper) {
+            this.scene.remove(this.axesHelper);
+        }
         this.trimBox.geometry.dispose();
         this.boxHelper.geometry.dispose();
         
@@ -1697,6 +1710,11 @@ class TrimBoxManipulator {
         this.boxHelper.material.color.setHex(this.boxColor); // 色を保持
         this.scene.add(this.boxHelper);
         
+        // XYZ軸ヘルパーを再作成
+        this.axesHelper = new THREE.AxesHelper(2);
+        this.axesHelper.position.copy(this.targetPosition);
+        this.scene.add(this.axesHelper);
+        
         this.updateHandlePositions();
     }
 
@@ -1709,6 +1727,9 @@ class TrimBoxManipulator {
         // 箱のサイズを更新
         this.scene.remove(this.trimBox);
         this.scene.remove(this.boxHelper);
+        if (this.axesHelper) {
+            this.scene.remove(this.axesHelper);
+        }
         this.trimBox.geometry.dispose();
         this.boxHelper.geometry.dispose();
         
@@ -1723,6 +1744,11 @@ class TrimBoxManipulator {
         this.boxHelper.position.copy(center);
         this.boxHelper.rotation.copy(currentRotation); // 回転を復元
         this.scene.add(this.boxHelper);
+        
+        // XYZ軸ヘルパーを再作成
+        this.axesHelper = new THREE.AxesHelper(2);
+        this.axesHelper.position.copy(center);
+        this.scene.add(this.axesHelper);
         
         // 位置を更新
         this.targetPosition.copy(center);
