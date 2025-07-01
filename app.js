@@ -130,8 +130,14 @@ class TrimBoxManipulator {
         // モデルの中心を取得（サイズ計算用）
         const modelCenter = boundingBox.getCenter(new THREE.Vector3());
         
-        // 箱を配置する位置を決定（カメラターゲット位置 = 画面中央）
-        const boxCenter = this.controls.target.clone();
+        // 箱を配置する位置を決定（カメラターゲット位置より手前）
+        const cameraDirection = new THREE.Vector3();
+        this.camera.getWorldDirection(cameraDirection);
+        
+        // カメラからターゲットまでの距離の70%の位置に配置（手前に）
+        const targetDistance = this.camera.position.distanceTo(this.controls.target);
+        const boxDistance = targetDistance * 0.7;
+        const boxCenter = this.camera.position.clone().add(cameraDirection.multiplyScalar(boxDistance));
         
         // 初期表示時のみ画面サイズに基づいて箱サイズを計算
         // カメラからターゲット位置までの距離を使用
