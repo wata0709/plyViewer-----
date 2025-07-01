@@ -139,6 +139,9 @@ class TrimBoxManipulator {
         const boxDistance = targetDistance * 0.7;
         const boxCenter = this.camera.position.clone().add(cameraDirection.multiplyScalar(boxDistance));
         
+        // Y座標はモデルのY座標中央を使用
+        boxCenter.y = modelCenter.y;
+        
         // 初期表示時のみ画面サイズに基づいて箱サイズを計算
         // カメラからターゲット位置までの距離を使用
         const cameraDistance = this.camera.position.distanceTo(boxCenter);
@@ -2859,7 +2862,7 @@ class PLYViewer {
         }
         
         const toggleButton = document.getElementById('toggleTrimBox');
-        toggleButton.textContent = this.trimBoxVisible ? 'トリミング箱非表示' : 'トリミング箱表示';
+        toggleButton.textContent = this.trimBoxVisible ? 'スライスを中止する' : 'スライス';
     }
 
     updatePreview() {
@@ -2955,7 +2958,7 @@ class PLYViewer {
         this.trimBoxVisible = false;
         
         const toggleButton = document.getElementById('toggleTrimBox');
-        toggleButton.textContent = 'トリミング箱表示';
+        toggleButton.textContent = 'スライス';
         
         this.updateUI();
         
@@ -2989,7 +2992,7 @@ class PLYViewer {
         this.trimBoxVisible = false;
         
         const toggleButton = document.getElementById('toggleTrimBox');
-        toggleButton.textContent = 'トリミング箱表示';
+        toggleButton.textContent = 'スライス';
         
         this.updateUI();
     }
