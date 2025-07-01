@@ -127,10 +127,15 @@ class TrimBoxManipulator {
     create(boundingBox) {
         this.clear();
         
+        // モデルの中心を取得（サイズ計算用）
         const modelCenter = boundingBox.getCenter(new THREE.Vector3());
         
+        // 箱を配置する位置を決定（カメラターゲット位置 = 画面中央）
+        const boxCenter = this.controls.target.clone();
+        
         // 初期表示時のみ画面サイズに基づいて箱サイズを計算
-        const cameraDistance = this.camera.position.distanceTo(modelCenter);
+        // カメラからターゲット位置までの距離を使用
+        const cameraDistance = this.camera.position.distanceTo(boxCenter);
         const fov = this.camera.fov * (Math.PI / 180);
         
         // 画面の30%程度のサイズになるように計算
@@ -146,7 +151,7 @@ class TrimBoxManipulator {
         });
         
         this.trimBox = new THREE.Mesh(geometry, material);
-        this.trimBox.position.copy(modelCenter);
+        this.trimBox.position.copy(boxCenter);
         this.scene.add(this.trimBox);
         
         const edges = new THREE.EdgesGeometry(geometry);
@@ -158,7 +163,7 @@ class TrimBoxManipulator {
             transparent: true  // 透明度設定を有効にする
         });
         this.boxHelper = new THREE.LineSegments(edges, lineMaterial);
-        this.boxHelper.position.copy(modelCenter);
+        this.boxHelper.position.copy(boxCenter);
         this.boxHelper.renderOrder = 1000; // 高いレンダリング順序で最前面に表示
         this.scene.add(this.boxHelper);
         
@@ -166,7 +171,7 @@ class TrimBoxManipulator {
         
         // 初期の3D空間でのサイズと位置を保存
         this.fixedBoxSize = boxSize;
-        this.targetPosition = modelCenter.clone();
+        this.targetPosition = boxCenter.clone();
         this.currentScale = 1.0;
         
         this.createHandles();
