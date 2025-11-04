@@ -1005,6 +1005,7 @@ class PLYViewer {
         if (optionPanel) {
             if (this.trimBoxVisible) {
                 // スライスモードに入ったときは開いた状態にする
+                optionPanel.style.display = 'block'; // 表示を復元
                 optionPanel.classList.add('active');
                 optionPanel.classList.remove('closed');
             } else {
@@ -1530,7 +1531,7 @@ class PLYViewer {
         if (optionPanel) {
             optionPanel.classList.remove('active');
             optionPanel.classList.remove('closed');
-            optionPanel.style.display = 'none'; // リセット時は完全に非表示
+            // display: noneは設定しない（編集ボタンから呼ばれた時に再表示されるため）
         }
         const sliceButton = document.getElementById('sliceButton');
         if (sliceButton) {
