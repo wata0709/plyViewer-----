@@ -31,4 +31,4 @@ Desktop.ini
 
 # Claude AI設定（ローカル）
 .claude/settings.local.json
-
+.vscode/settings.json
