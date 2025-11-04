@@ -2349,9 +2349,9 @@ class TrimBoxManipulator {
             rotation = new THREE.Euler(0, direction > 0 ? 0 : Math.PI, 0);
         }
 
-        // ハイライト用のマテリアル（黄色、半透明）
+        // ハイライト用のマテリアル（水色、半透明）
         const material = new THREE.MeshBasicMaterial({
-            color: 0xffff00,
+            color: 0x00dfff,
             transparent: true,
             opacity: 0.3,
             side: THREE.DoubleSide,
