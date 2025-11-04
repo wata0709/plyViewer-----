@@ -1126,12 +1126,21 @@ class PLYViewer {
         this.currentModel.rotation.copy(currentRotation);
         this.modelRotation.copy(currentRotation);
 
+        // モデルを白く表示（スライス中の断面表示を継続）
+        if (this.currentModel && this.currentModel.material) {
+            // 元の色を無視して白で表示
+            if (this.currentModel.material.vertexColors) {
+                this.currentModel.material.vertexColors = false;
+            }
+            this.currentModel.material.color.setHex(0xffffff);
+            this.currentModel.material.needsUpdate = true;
+        }
+
         // 新しいモデルをrealtimePreviewに設定
         this.realtimePreview.setOriginalModel(this.currentModel);
 
-        // プレビューをクリアして白いモデルを表示（断面表示を継続）
+        // プレビューモードをクリア
         this.realtimePreview.clearPreview(this.scene);
-        this.realtimePreview.showOriginalModel();
 
         this.trimBoxManipulator.clear();
         this.trimBoxVisible = false;
