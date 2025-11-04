@@ -1009,8 +1009,10 @@ class PLYViewer {
                 optionPanel.classList.add('active');
                 optionPanel.classList.remove('closed');
             } else {
+                // スライスモードを抜ける時は完全に非表示
                 optionPanel.classList.remove('active');
                 optionPanel.classList.remove('closed');
+                optionPanel.style.display = 'none';
             }
         }
         

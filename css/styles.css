@@ -425,6 +425,7 @@ body {
     align-items: flex-start;
     gap: 12px;
     align-self: stretch;
+    margin-top: 12px;
 }
 
 .option-item {
