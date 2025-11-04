@@ -789,7 +789,7 @@ class PLYViewer {
         const vertices = [];
         const colors = [];
         const gridColor = new THREE.Color(0x030303); // シアン色
-        const gridAlpha = 0.2; // 透明度
+        const gridAlpha = 0.5; // 透明度
         
         // グリッドの分割数
         const divisions = Math.floor(gridSize / gridSpacing);
@@ -1121,13 +1121,19 @@ class PLYViewer {
         this.currentModel.material.dispose();
         
         this.createModel(newGeometry);
-        
+
         // 向きを復元
         this.currentModel.rotation.copy(currentRotation);
         this.modelRotation.copy(currentRotation);
-        
-        this.trimBoxManipulator.clear();
+
+        // 新しいモデルをrealtimePreviewに設定
+        this.realtimePreview.setOriginalModel(this.currentModel);
+
+        // プレビューをクリアして白いモデルを表示（断面表示を継続）
         this.realtimePreview.clearPreview(this.scene);
+        this.realtimePreview.showOriginalModel();
+
+        this.trimBoxManipulator.clear();
         this.trimBoxVisible = false;
         
         // 新しいUI要素の状態を更新
