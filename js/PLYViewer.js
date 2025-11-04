@@ -20,6 +20,7 @@ class PLYViewer {
         this.trimBoxManipulator = null;
         this.realtimePreview = null;
         this.trimBoxVisible = false;
+        this.boundaryDisplayModel = null; // スライス実行後の境界表示用
         
         // カメラの初期位置を保存
         this.initialCameraPosition = new THREE.Vector3();
@@ -1120,30 +1121,35 @@ class PLYViewer {
         this.currentModel.geometry.dispose();
         this.currentModel.material.dispose();
         
+        // トリミング箱の情報を保存（境界表示用）
+        const savedTrimBoxInfo = {
+            position: this.trimBoxManipulator.trimBox.position.clone(),
+            rotation: this.trimBoxManipulator.trimBox.rotation.clone(),
+            size: new THREE.Vector3(
+                this.trimBoxManipulator.trimBox.geometry.parameters.width / 2,
+                this.trimBoxManipulator.trimBox.geometry.parameters.height / 2,
+                this.trimBoxManipulator.trimBox.geometry.parameters.depth / 2
+            )
+        };
+
         this.createModel(newGeometry);
 
         // 向きを復元
         this.currentModel.rotation.copy(currentRotation);
         this.modelRotation.copy(currentRotation);
 
-        // モデルを白く表示（スライス中の断面表示を継続）
-        if (this.currentModel && this.currentModel.material) {
-            // 元の色を無視して白で表示
-            if (this.currentModel.material.vertexColors) {
-                this.currentModel.material.vertexColors = false;
-            }
-            this.currentModel.material.color.setHex(0xffffff);
-            this.currentModel.material.needsUpdate = true;
-        }
-
         // 新しいモデルをrealtimePreviewに設定
         this.realtimePreview.setOriginalModel(this.currentModel);
 
-        // プレビューモードをクリア
+        // トリミング箱をクリアする前にプレビューを更新
         this.realtimePreview.clearPreview(this.scene);
 
         this.trimBoxManipulator.clear();
         this.trimBoxVisible = false;
+
+        // 境界点群を白く表示（スライス中の断面表示を継続）
+        this.createBoundaryDisplay(savedTrimBoxInfo, currentRotation);
+
         
         // 新しいUI要素の状態を更新
         const operationFrame = document.getElementById('operationFrame');
@@ -1183,6 +1189,77 @@ class PLYViewer {
             rotation: currentRotation,
             trimmedVertices: vertexCount,
             originalVertices: positions.length / 3
+        });
+    }
+
+    createBoundaryDisplay(trimBoxInfo, modelRotation) {
+        if (!this.currentModel) return;
+
+        // 既存の境界モデルがあればクリア
+        if (this.boundaryDisplayModel) {
+            this.scene.remove(this.boundaryDisplayModel);
+            this.boundaryDisplayModel.geometry.dispose();
+            this.boundaryDisplayModel.material.dispose();
+            this.boundaryDisplayModel = null;
+        }
+
+        const geometry = this.currentModel.geometry;
+        const positions = geometry.attributes.position.array;
+        const boundaryPositions = [];
+        const boundaryThreshold = 0.05; // 境界検出の閾値
+
+        // トリミング箱の逆変換行列を計算
+        const trimBoxMatrix = new THREE.Matrix4();
+        trimBoxMatrix.makeRotationFromEuler(trimBoxInfo.rotation);
+        trimBoxMatrix.setPosition(trimBoxInfo.position);
+        const trimBoxInverseMatrix = trimBoxMatrix.clone().invert();
+
+        // 各頂点が境界に近いかチェック
+        for (let i = 0; i < positions.length; i += 3) {
+            const localPoint = new THREE.Vector3(
+                positions[i],
+                positions[i + 1],
+                positions[i + 2]
+            );
+
+            // ワールド座標に変換（モデルの回転を適用）
+            const worldPoint = localPoint.clone();
+            worldPoint.applyEuler(modelRotation);
+
+            // トリミング箱のローカル座標系に変換
+            const trimBoxLocalPoint = worldPoint.clone();
+            trimBoxLocalPoint.applyMatrix4(trimBoxInverseMatrix);
+
+            // 各面からの距離を計算
+            const distanceToXFace = Math.abs(Math.abs(trimBoxLocalPoint.x) - trimBoxInfo.size.x);
+            const distanceToYFace = Math.abs(Math.abs(trimBoxLocalPoint.y) - trimBoxInfo.size.y);
+            const distanceToZFace = Math.abs(Math.abs(trimBoxLocalPoint.z) - trimBoxInfo.size.z);
+
+            // どれか一つの面に近い場合は境界点群
+            const minDistance = Math.min(distanceToXFace, distanceToYFace, distanceToZFace);
+            if (minDistance <= boundaryThreshold) {
+                boundaryPositions.push(positions[i], positions[i + 1], positions[i + 2]);
+            }
+        }
+
+        if (boundaryPositions.length === 0) return;
+
+        // 境界点群を白く表示
+        const boundaryGeometry = new THREE.BufferGeometry();
+        boundaryGeometry.setAttribute('position', new THREE.Float32BufferAttribute(boundaryPositions, 3));
+
+        const boundaryMaterial = new THREE.PointsMaterial({
+            size: 0.040, // 少し大きめに表示
+            color: 0xffffff,
+            depthTest: true
+        });
+
+        this.boundaryDisplayModel = new THREE.Points(boundaryGeometry, boundaryMaterial);
+        this.boundaryDisplayModel.rotation.copy(modelRotation);
+        this.scene.add(this.boundaryDisplayModel);
+
+        console.log('境界点群を表示:', {
+            boundaryPoints: boundaryPositions.length / 3
         });
     }
 
