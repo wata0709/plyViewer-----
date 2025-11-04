@@ -752,8 +752,8 @@ class PLYViewer {
         
         // グリッドのサイズ（モデルの最大寸法の1.5倍程度に縮小）
         const maxDim = Math.max(size.x, size.y, size.z);
-        const gridSize = maxDim * 1.5;
-        const gridSpacing = maxDim * 0.1; // グリッドの間隔を細かく
+        const gridSize = maxDim * 8;
+        const gridSpacing = maxDim * 0.2; // グリッドの間隔を細かく
 
         // グリッドのY座標（モデルのすぐ下）
         // 実際の最小Y座標を使用（より正確）
@@ -2255,14 +2255,16 @@ class PLYViewer {
         
         if (this.trimBoxVisible) {
             this.updateTrimBoxInfo();
-            
+
             if (this.trimBoxManipulator.isDragging) {
                 this.updatePreview();
             }
-            
+
             // 矢印を常にカメラに向ける
             if (this.trimBoxManipulator) {
                 this.trimBoxManipulator.updateArrowOrientations();
+                // ハンドルのスケールをカメラ距離に応じて更新
+                this.trimBoxManipulator.updateHandleScales();
             }
         }
         

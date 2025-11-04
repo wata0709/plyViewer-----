@@ -2621,6 +2621,42 @@ class TrimBoxManipulator {
             });
         }
     }
+
+    updateHandleScales() {
+        // トリミングボックスが存在しない場合は何もしない
+        if (!this.trimBox) return;
+
+        // カメラからトリミングボックス中心までの距離を計算
+        const boxCenter = this.trimBox.position.clone();
+        const cameraDistance = this.camera.position.distanceTo(boxCenter);
+
+        // 基準距離（初期状態のカメラ距離）
+        const referenceDistance = 10.0; // 初期状態での距離を基準とする
+
+        // 距離に応じたスケール係数を計算
+        const scaleFactor = cameraDistance / referenceDistance;
+
+        // 面ハンドル（矢印）のスケールを更新
+        this.faceHandles.forEach(handle => {
+            if (handle && handle.visible) {
+                handle.scale.set(scaleFactor, scaleFactor, scaleFactor);
+            }
+        });
+
+        // エッジハンドル（回転ハンドル）のスケールを更新
+        this.edgeHandles.forEach(handle => {
+            if (handle) {
+                handle.scale.set(scaleFactor, scaleFactor, scaleFactor);
+            }
+        });
+
+        // 頂点ハンドルのスケールを更新
+        this.cornerHandles.forEach(handle => {
+            if (handle) {
+                handle.scale.set(scaleFactor, scaleFactor, scaleFactor);
+            }
+        });
+    }
 }
 
 export { TrimBoxManipulator };
