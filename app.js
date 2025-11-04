@@ -468,14 +468,13 @@ class TrimBoxManipulator {
         const tip = new THREE.Mesh(tipGeometry, tipMaterial);
         
         // 位置調整：円柱と円錐が適切に接続するように配置
-        const totalHeight = shaftHeight + tipHeight;
         shaft.position.y = 0; // 円柱の中心を原点に配置
         tip.position.y = shaftHeight * 0.5 + tipHeight * 0.5;   // 円錐を円柱の上端に配置
         
         // 矢印の中心軸に沿った線を追加（細い円柱として描画して確実に表示）
-        // 線を円柱より少し大きくして、はみ出すように表示
+        // 線は円柱部分だけに沿って表示し、円錐には重ならないようにする
         const lineRadius = Math.max(shaftRadius * 1.3, 0.02); // 線の半径は円柱の130%、最小0.02
-        const lineHeight = totalHeight * 1.02; // わずかに長くして端が見えるように
+        const lineHeight = shaftHeight * 1.05; // 円柱部分より少し長くする（上端が円錐の底面に少し入る程度）
         const lineGeometry = new THREE.CylinderGeometry(lineRadius, lineRadius, lineHeight, 8);
         const lineMaterial = new THREE.MeshBasicMaterial({
             color: 0xffffff,
@@ -485,7 +484,7 @@ class TrimBoxManipulator {
             transparent: false       // 透明度は使用しない
         });
         const line = new THREE.Mesh(lineGeometry, lineMaterial);
-        line.position.y = shaftHeight * 0.5; // 円柱の上端を中心として配置（円錐の底面と接する位置）
+        line.position.y = 0; // 円柱と同じ位置に配置
         
         // レンダリング順序を設定（同じグループ内では追加順序が重要）
         shaft.renderOrder = 1;
