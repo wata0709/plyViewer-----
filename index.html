@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PLY Viewer - トリミング機能付き3Dビューワー</title>
+    <title>sliceFunctionDemo</title>
     <style>
         * {
             margin: 0;
@@ -630,21 +630,6 @@
                 </button>
             </div>
 
-            <div class="control-group">
-                <h3>矢印/引き出し線 設定</h3>
-                <div class="slider-container">
-                    <label class="slider-label" for="arrowHeadSize">矢印の頭の大きさ <span class="slider-value" id="arrowHeadSizeValue">0.55</span></label>
-                    <input type="range" id="arrowHeadSize" class="slider" min="0.2" max="1.5" step="0.05" value="0.55">
-                </div>
-                <div class="slider-container">
-                    <label class="slider-label" for="leaderLength">引き出し線の長さ <span class="slider-value" id="leaderLengthValue">0.75</span></label>
-                    <input type="range" id="leaderLength" class="slider" min="0.0" max="1.5" step="0.05" value="0.75">
-                </div>
-                <div class="slider-container">
-                    <label class="slider-label" for="leaderThickness">引き出し線の太さ <span class="slider-value" id="leaderThicknessValue">3</span></label>
-                    <input type="range" id="leaderThickness" class="slider" min="1" max="8" step="1" value="3">
-                </div>
-            </div>
 
             <div class="control-group">
                 <h3>情報</h3>
@@ -655,6 +640,10 @@
                 <div class="info-item">
                     <span class="info-label">表示頂点数:</span>
                     <span class="info-value" id="currentVertexCount">-</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">ハンドルサイズ:</span>
+                    <span class="info-value" id="handlePixelSize">-</span>
                 </div>
             </div>
 
