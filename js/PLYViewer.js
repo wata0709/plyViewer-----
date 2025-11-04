@@ -38,6 +38,7 @@ class PLYViewer {
         this.skyboxSphere = null;
         this.skyboxVisible = true; // 初期状態でON
         this.defaultBackgroundColor = new THREE.Color(0x222222);
+        this.skyboxTexture = null; // 天球のテクスチャを保持
         
         // グリッド関連
         this.gridMesh = null;
@@ -787,8 +788,8 @@ class PLYViewer {
         // 遠近感を持たせるためのグリッド作成
         const vertices = [];
         const colors = [];
-        const gridColor = new THREE.Color(0x232A3E); // シアン色
-        const gridAlpha = 0.4; // 透明度
+        const gridColor = new THREE.Color(0x030303); // シアン色
+        const gridAlpha = 0.2; // 透明度
         
         // グリッドの分割数
         const divisions = Math.floor(gridSize / gridSpacing);
@@ -937,20 +938,23 @@ class PLYViewer {
 
         // スライスモード時の天球と背景色の制御
         if (this.trimBoxVisible) {
-            // スライスモードON: 天球を非表示にして背景色を#0F0F0Fに
-            if (this.skyboxSphere) {
-                this.skyboxSphere.visible = false;
-            }
-            this.scene.background = new THREE.Color(0x0F0F0F);
-
+            // スライスモードON: 天球を常に表示（OFF: グレー、ON: 天球画像）
             // スライスモード用の天球トグルを初期状態（OFF）に設定
             const toggleSkyboxSlice = document.getElementById('toggleSkyboxSlice');
             if (toggleSkyboxSlice) {
                 toggleSkyboxSlice.checked = false;
+                // 天球の表示方法を更新（OFF: グレー）
+                this.toggleSkyboxInSliceMode(false);
             }
         } else {
             // スライスモードOFF: 天球の表示状態を元に戻す
-            if (this.skyboxSphere) {
+            if (this.skyboxSphere && this.skyboxSphere.material) {
+                // 天球のテクスチャを復元
+                if (this.skyboxTexture) {
+                    this.skyboxSphere.material.map = this.skyboxTexture;
+                    this.skyboxSphere.material.color.setHex(0xffffff); // 色を白に戻す
+                    this.skyboxSphere.material.needsUpdate = true;
+                }
                 this.skyboxSphere.visible = this.skyboxVisible;
             }
             if (this.skyboxVisible) {
@@ -1979,6 +1983,9 @@ class PLYViewer {
 
     // 天球を作成
     createSkybox(texture) {
+        // テクスチャを保持
+        this.skyboxTexture = texture;
+        
         // 球体ジオメトリを作成（内側から見るため、スケールをマイナスにする）
         const geometry = new THREE.SphereGeometry(500, 60, 40);
         geometry.scale(-1, 1, 1); // X軸を反転して内側から見えるようにする
@@ -2039,7 +2046,7 @@ class PLYViewer {
         console.log('天球表示状態:', this.skyboxVisible);
     }
 
-    // スライスモード中の天球表示/非表示を切り替え
+    // スライスモード中の天球表示を切り替え（OFF: グレー、ON: 天球画像）
     toggleSkyboxInSliceMode(checked) {
         // スライスモード中でない場合は何もしない
         if (!this.trimBoxVisible) {
@@ -2047,17 +2054,29 @@ class PLYViewer {
             return;
         }
 
-        // 天球の表示状態を切り替え
+        // 天球は常に表示（ON/OFFで表示方法を切り替え）
         if (this.skyboxSphere) {
-            this.skyboxSphere.visible = checked;
+            this.skyboxSphere.visible = true;
+            
+            // 天球のマテリアルを更新
+            if (this.skyboxSphere.material) {
+                if (checked) {
+                    // ON: 天球画像を使用
+                    if (this.skyboxTexture) {
+                        this.skyboxSphere.material.map = this.skyboxTexture;
+                        this.skyboxSphere.material.color.setHex(0xffffff); // 色を白に戻す
+                    }
+                } else {
+                    // OFF: グレー色を使用
+                    this.skyboxSphere.material.color.setHex(0x26282B); // グレー色
+                    this.skyboxSphere.material.map = null; // テクスチャを無効化
+                }
+                this.skyboxSphere.material.needsUpdate = true;
+            }
         }
 
         // 背景色も切り替え
-        if (checked) {
-            this.scene.background = null; // 天球表示時は背景色を無効
-        } else {
-            this.scene.background = new THREE.Color(0x0F0F0F); // スライスモード用の暗い背景色
-        }
+        this.scene.background = null; // 天球表示時は背景色を無効
 
         // チェックボックスの状態を更新
         const toggleCheckbox = document.getElementById('toggleSkyboxSlice');
@@ -2065,7 +2084,7 @@ class PLYViewer {
             toggleCheckbox.checked = checked;
         }
 
-        console.log('スライスモード中の天球表示状態:', checked);
+        console.log('スライスモード中の天球表示方法:', checked ? '天球画像' : 'グレー');
     }
 
     setupOrientationEventListeners() {

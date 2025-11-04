@@ -75,7 +75,9 @@ class TrimBoxManipulator {
         this.zArrowRotationEnabled = true;   // Z軸矢印がカメラに向くか
         this.zArrowRotationAxis = 'y';       // Z軸矢印の回転軸 ('x', 'y', 'z')
 
-        
+        // 面ハイライト用
+        this.faceHighlight = null; // ハイライト表示用の面メッシュ
+
         this.raycaster = new THREE.Raycaster();
         // Lineのレイキャスト判定を厳密にする
         this.raycaster.params.Line.threshold = 0.05; // デフォルト: 1
@@ -845,6 +847,10 @@ class TrimBoxManipulator {
             // 面ハンドルをクリックした場合はその面を選択（他の矢印は消す）
             if (userData.type === 'face') {
                 this.selectFace(this.activeHandle);
+
+                // 対応する面をハイライト表示
+                this.highlightFace(this.activeHandle);
+
                 // 円錐（Mesh）の場合は直接material.colorを変更
                 if (this.activeHandle.material) {
                     this.activeHandle.material.color.setHex(0x00dfff);
@@ -1017,11 +1023,12 @@ class TrimBoxManipulator {
     deselectFace() {
         if (this.selectedFace) {
             this.selectedFace.visible = false;
-            
 
-            
+            // 面のハイライトもクリア
+            this.clearFaceHighlight();
+
             this.selectedFace = null;
-            
+
             console.log('面選択を解除');
         }
         // ホバー矢印を消去
@@ -1206,7 +1213,10 @@ class TrimBoxManipulator {
         this.isLongPressActive = false;
         this.clickedFaceIntersection = null;
         this.renderer.domElement.style.cursor = 'default';
-        
+
+        // 面のハイライトをクリア
+        this.clearFaceHighlight();
+
         // ハンドル操作終了時にカメラコントロールを必ず再有効化
         this.enableOrbitControls();
         this.hideTrimmingInfo();
@@ -2302,12 +2312,86 @@ class TrimBoxManipulator {
         console.log(`アクティブハンドル位置オフセット更新:`, this.activeHandlePositionOffset);
     }
 
+    // 面のハイライトを表示する
+    highlightFace(faceHandle) {
+        if (!this.trimBox || !faceHandle) return;
+
+        // 既存のハイライトをクリア
+        this.clearFaceHighlight();
+
+        const userData = faceHandle.userData;
+        const axis = userData.axis;
+        const direction = userData.direction;
+
+        // 箱のサイズを取得
+        const boxSize = new THREE.Vector3();
+        this.trimBox.geometry.computeBoundingBox();
+        const bbox = this.trimBox.geometry.boundingBox;
+        boxSize.x = bbox.max.x - bbox.min.x;
+        boxSize.y = bbox.max.y - bbox.min.y;
+        boxSize.z = bbox.max.z - bbox.min.z;
+
+        // ハイライト用の面ジオメトリを作成
+        let geometry, position, rotation;
+        const offset = 0.01; // 箱の面より少し外側に配置
+
+        if (axis === 'x') {
+            geometry = new THREE.PlaneGeometry(boxSize.z, boxSize.y);
+            position = new THREE.Vector3(direction * (boxSize.x / 2 + offset), 0, 0);
+            rotation = new THREE.Euler(0, direction > 0 ? -Math.PI / 2 : Math.PI / 2, 0);
+        } else if (axis === 'y') {
+            geometry = new THREE.PlaneGeometry(boxSize.x, boxSize.z);
+            position = new THREE.Vector3(0, direction * (boxSize.y / 2 + offset), 0);
+            rotation = new THREE.Euler(direction > 0 ? Math.PI / 2 : -Math.PI / 2, 0, 0);
+        } else if (axis === 'z') {
+            geometry = new THREE.PlaneGeometry(boxSize.x, boxSize.y);
+            position = new THREE.Vector3(0, 0, direction * (boxSize.z / 2 + offset));
+            rotation = new THREE.Euler(0, direction > 0 ? 0 : Math.PI, 0);
+        }
+
+        // ハイライト用のマテリアル（黄色、半透明）
+        const material = new THREE.MeshBasicMaterial({
+            color: 0xffff00,
+            transparent: true,
+            opacity: 0.3,
+            side: THREE.DoubleSide,
+            depthTest: false
+        });
+
+        // ハイライトメッシュを作成
+        this.faceHighlight = new THREE.Mesh(geometry, material);
+        this.faceHighlight.position.copy(position);
+        this.faceHighlight.rotation.copy(rotation);
+        this.faceHighlight.renderOrder = 999; // 最前面に表示
+
+        // trimBoxの子として追加（箱と一緒に動くように）
+        this.trimBox.add(this.faceHighlight);
+
+        console.log('面ハイライト表示:', { axis, direction });
+    }
+
+    // 面のハイライトをクリア
+    clearFaceHighlight() {
+        if (this.faceHighlight) {
+            if (this.faceHighlight.parent) {
+                this.faceHighlight.parent.remove(this.faceHighlight);
+            }
+            this.faceHighlight.geometry.dispose();
+            this.faceHighlight.material.dispose();
+            this.faceHighlight = null;
+            console.log('面ハイライトクリア');
+        }
+    }
+
     clear() {
         console.log('=== TrimBoxManipulator.clear() 開始 ===');
-        
+
         // クリア時にカメラコントロールを再有効化
         this.enableOrbitControls();
-        
+
+        // 面ハイライトをクリア
+        this.clearFaceHighlight();
+
         // 面選択をクリア
         this.deselectFace();
         
