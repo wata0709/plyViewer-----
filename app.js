@@ -85,7 +85,7 @@ class TrimBoxManipulator {
         try {
             const loader = new OBJLoader();
             this.customArrowModel = await new Promise((resolve, reject) => {
-                loader.load('OBJ/アセット 2.obj', resolve, undefined, reject);
+                loader.load('OBJ/arrow.obj', resolve, undefined, reject);
             });
             
             // モデルのスケールとマテリアルを設定
@@ -97,7 +97,7 @@ class TrimBoxManipulator {
             
             this.customArrowLoaded = true;
             this.useCustomArrow = true; // デフォルトでカスタム矢印を使用
-            console.log('カスタム矢印モデル (アセット 2.obj) の読み込み完了');
+            console.log('カスタム矢印モデル (arrow.obj) の読み込み完了');
         } catch (error) {
             console.warn('カスタム矢印モデルの読み込みに失敗:', error);
             this.customArrowLoaded = false;
