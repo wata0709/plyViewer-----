@@ -23,6 +23,7 @@ class TrimBoxManipulator {
         this.activeHandle = null;
         this.selectedFace = null; // 選択された面
         this.hoveredHandle = null; // ホバー中のハンドル
+        this.hoveredFaceHandle = null; // ホバー表示中の面ハンドル
         this.initialMousePos = new THREE.Vector2();
         this.initialBoxSize = new THREE.Vector3();
         this.initialBoxPos = new THREE.Vector3();
@@ -50,15 +51,17 @@ class TrimBoxManipulator {
         this.individualEdgeYRotations = [-90, 0, 0, -90]; // 各ハンドルの個別Y軸回転（度単位）
         this.individualEdgeXRotations = [90, -90, 90, -90]; // 各ハンドルの個別X軸回転（度単位）
         
-        // 円錐のサイズパラメータ
-        this.arrowOffset = 0.55;      // 始まり位置（箱からの距離）
+        // 円錐のサイズパラメータ（デフォルト値）
+        this.arrowOffset = 0.75;      // 引き出し線の長さ（箱から矢印までの距離）
         this.coneRadius = 0.200;      // 円錐の底面半径
-        this.coneHeight = 0.700;      // 円錐の高さ
+        this.coneHeight = 0.550;      // 矢印の頭の大きさ
+        this.leaderThickness = 3;     // 引き出し線の太さ
+        this.leaderRadius = this.leaderThickness * 0.01; // 0.03
         
         // カスタム矢印関連
         this.customArrowModel = null;    // カスタムOBJモデル
         this.useCustomArrow = true;      // カスタム矢印を常時使用
-        this.customArrowScale = 0.07;     // カスタム矢印のスケール
+        this.customArrowScale = 0.055;    // カスタム矢印のスケール（coneHeight 0.55 に合わせる）
         this.customArrowLoaded = false;  // カスタム矢印が読み込まれたかどうか
 
         
@@ -66,6 +69,7 @@ class TrimBoxManipulator {
         // Lineのレイキャスト判定を厳密にする
         this.raycaster.params.Line.threshold = 0.05; // デフォルト: 1
         this.mouse = new THREE.Vector2();
+        
         
         this.setupEventListeners();
         this.loadCustomArrowModel(); // カスタム矢印モデルを読み込み
@@ -100,6 +104,11 @@ class TrimBoxManipulator {
         this.renderer.domElement.addEventListener('mousemove', (e) => this.onMouseMove(e));
         this.renderer.domElement.addEventListener('mouseup', (e) => this.onMouseUp(e));
         this.renderer.domElement.addEventListener('mouseleave', (e) => this.onMouseLeave(e));
+        // キャンバス外でボタンを離した場合でもドラッグ解除されるようにする
+        document.addEventListener('mouseup', (e) => this.onMouseUp(e));
+        window.addEventListener('mouseup', (e) => this.onMouseUp(e));
+        window.addEventListener('pointerup', (e) => this.onMouseUp(e));
+        window.addEventListener('blur', () => this.cancelTrimming());
         
         // キーイベントリスナー
         document.addEventListener('keydown', (e) => {
@@ -126,6 +135,12 @@ class TrimBoxManipulator {
 
     create(boundingBox) {
         this.clear();
+        
+        // アクティブなハンドル状態をリセット
+        this.activeHandle = null;
+        this.hoveredHandle = null;
+        this.hoveredFaceHandle = null;
+        this.isDragging = false;
         
         // モデルの中心を取得（サイズ計算用）
         const modelCenter = boundingBox.getCenter(new THREE.Vector3());
@@ -173,7 +188,7 @@ class TrimBoxManipulator {
         });
         this.boxHelper = new THREE.LineSegments(edges, lineMaterial);
         this.boxHelper.position.copy(boxCenter);
-        this.boxHelper.renderOrder = 1000; // 高いレンダリング順序で最前面に表示
+        this.boxHelper.renderOrder = 10000; // 非常に高い順序で常に最前面に表示
         this.scene.add(this.boxHelper);
         
 
@@ -188,11 +203,22 @@ class TrimBoxManipulator {
     }
 
     createHandles() {
+        // 念のため、既存のハンドルをすべて削除
+        [...this.handles, ...this.faceHandles, ...this.edgeHandles, ...this.cornerHandles].forEach(handle => {
+            if (handle && handle.parent) {
+                this.scene.remove(handle);
+            }
+        });
+        
         this.handles = [];
         this.faceHandles = [];
         this.edgeHandles = [];
         this.cornerHandles = [];
         this.initialEdgeRotations = []; // 初期回転をリセット
+        this.activeHandle = null; // アクティブなハンドルをリセット
+        this.hoveredHandle = null; // ホバー中のハンドルをリセット
+        this.hoveredFaceHandle = null; // ホバー中の面ハンドルをリセット
+        this.selectedFace = null; // 選択された面をリセット
         
         const box = new THREE.Box3().setFromObject(this.trimBox);
         const min = box.min;
@@ -265,12 +291,10 @@ class TrimBoxManipulator {
             
             // 矢印を面の法線方向に向ける
             this.orientArrowHandle(handle, handleData);
-            
+
             this.scene.add(handle);
             this.handles.push(handle); // 面ハンドルもhandlesに追加
             this.faceHandles.push(handle);
-            
-
             
             console.log('面ハンドル作成:', { 
                 type: handleData.type, 
@@ -282,11 +306,25 @@ class TrimBoxManipulator {
             });
         });
         
-        // エッジハンドルを作成（太いチューブとして）
+        // エッジハンドルを作成（太いチューブ＋両端矢印）
         edgePositions.forEach((handleData, index) => {
+            const group = new THREE.Group();
             const handle = new THREE.Mesh(edgeHandleGeometry, edgeHandleMaterial.clone());
-            handle.position.copy(handleData.pos);
-            handle.userData = { ...handleData, handleIndex: index };
+            // 矢印ヘッド（両端） - 小さめ
+            const headRadius = this.coneRadius * 0.4;
+            const headHeight = this.coneHeight * 0.4;
+            const arrowMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const headGeom = new THREE.ConeGeometry(headRadius, headHeight, 8);
+            const headStart = new THREE.Mesh(headGeom, arrowMat.clone());
+            const headEnd = new THREE.Mesh(headGeom, arrowMat.clone());
+            // デフォルトは非表示（ホバー時のみ表示）
+            headStart.visible = false;
+            headEnd.visible = false;
+            group.add(handle);
+            group.add(headStart);
+            group.add(headEnd);
+            group.position.copy(handleData.pos);
+            group.userData = { ...handleData, handleIndex: index, type: 'edge' };
             
             // ジオメトリの境界ボックスを計算
             if (handle.geometry) {
@@ -294,18 +332,18 @@ class TrimBoxManipulator {
             }
             
             // 円の4分の1を適切に配置
-            this.orientQuarterCircleHandle(handle, handle.userData);
+            this.orientQuarterCircleHandle(group, group.userData);
             
             // 箱に対する相対回転を保存（初期状態では箱の回転は0なので、そのまま相対角度になる）
             this.initialEdgeRotations[index] = {
-                x: handle.rotation.x,
-                y: handle.rotation.y,
-                z: handle.rotation.z
+                x: group.rotation.x,
+                y: group.rotation.y,
+                z: group.rotation.z
             };
             
-            this.scene.add(handle);
-            this.handles.push(handle);
-            this.edgeHandles.push(handle);
+            this.scene.add(group);
+            this.handles.push(group);
+            this.edgeHandles.push(group);
             console.log('エッジハンドル作成:', { 
                 type: handleData.type, 
                 edgeType: handleData.edgeType, 
@@ -349,9 +387,10 @@ class TrimBoxManipulator {
 
     createQuarterCircleTubeGeometry() {
         // 円の4分の1の太いチューブを作成
+        const ringRadius = 0.40; // 回転ハンドルの円半径（少し大きく）
         const curve = new THREE.EllipseCurve(
             0, 0,            // 中心
-            0.3, 0.3,      // 半径（0.08 → 0.15に拡大）
+            ringRadius, ringRadius,      // 半径
             0, Math.PI / 2,  // 角度範囲（0度から90度）
             false,           // 時計回り
             0                // 回転
@@ -378,6 +417,27 @@ class TrimBoxManipulator {
         // ジオメトリを適切な向きに回転（元の線の向きに合わせる）
         // X軸周りに-90度回転してXZ平面に配置
         tubeGeometry.rotateX(-Math.PI / 2);
+
+        // 矢印用に曲線の始点・終点と接線方向（ローカル座標）を記録
+        const radius = ringRadius;
+        const startAngle = 0;
+        const endAngle = Math.PI / 2;
+        // 始点・終点（回転前のローカル）
+        const startPos = new THREE.Vector3(Math.cos(startAngle) * radius, 0, Math.sin(startAngle) * radius); // (r,0,0)
+        const endPos = new THREE.Vector3(Math.cos(endAngle) * radius, 0, Math.sin(endAngle) * radius);       // (0,0,r)
+        // 接線（回転前）
+        const startTan = new THREE.Vector3(-Math.sin(startAngle), 0, Math.cos(startAngle)); // (0,0,1)
+        const endTan = new THREE.Vector3(-Math.sin(endAngle), 0, Math.cos(endAngle));       // (-1,0,0)
+        // X軸-90度回転を反映
+        const rotX = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0), -Math.PI / 2);
+        startPos.applyQuaternion(rotX);
+        endPos.applyQuaternion(rotX);
+        startTan.applyQuaternion(rotX);
+        endTan.applyQuaternion(rotX);
+        tubeGeometry.userData.edgeEndpoints = {
+            start: { pos: startPos, dir: startTan.normalize() },
+            end: { pos: endPos, dir: endTan.normalize() }
+        };
         
         return tubeGeometry;
     }
@@ -412,6 +472,8 @@ class TrimBoxManipulator {
     }
 
     orientQuarterCircleHandle(handle, handleData) {
+        const isGroup = handle.type === 'Group';
+        const tube = isGroup ? handle.children[0] : handle;
         // インデックスベースの固定パターンで向きを決定
         // 角度パターン: [π/2, 0, π, -π/2] （右奥、右手前、左奥、左手前）
         const anglePatterns = [
@@ -432,6 +494,19 @@ class TrimBoxManipulator {
         handle.rotation.x = individualXOffsetRadians;
         handle.rotation.y = baseAngleY + globalYOffsetRadians + individualYOffsetRadians;
         handle.rotation.z = 0;
+
+        // 矢印ヘッドの向き・位置をチューブの端点に合わせる
+        if (isGroup && tube.geometry && tube.geometry.userData && tube.geometry.userData.edgeEndpoints) {
+            const { start, end } = tube.geometry.userData.edgeEndpoints;
+            const headStart = handle.children[1];
+            const headEnd = handle.children[2];
+            // ローカル端点に配置
+            headStart.position.copy(start.pos);
+            headEnd.position.copy(end.pos);
+            // 向き: 片方は接線方向の逆、もう片方は接線方向（反転）
+            headStart.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), start.dir.clone().multiplyScalar(-1).normalize());
+            headEnd.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), end.dir.clone().normalize());
+        }
         
         // デバッグ用ログ
         console.log('エッジハンドル向き設定:', { 
@@ -465,6 +540,11 @@ class TrimBoxManipulator {
     }
 
     onMouseDown(event) {
+        // トリミングボックスが存在しない場合は何もしない
+        if (!this.trimBox) {
+            return;
+        }
+        
         event.preventDefault();
         
         const rect = this.renderer.domElement.getBoundingClientRect();
@@ -550,6 +630,14 @@ class TrimBoxManipulator {
                 hasMaterial: !!targetObject.material
             });
             
+            // edgeの子Meshが当たった場合は親GroupをactiveHandleにする
+            if (targetObject.userData && targetObject.userData.type === 'edge' && targetObject.type !== 'Group') {
+                let parent = targetObject.parent;
+                for (let i = 0; i < 3 && parent; i++) {
+                    if (parent.type === 'Group') { targetObject = parent; break; }
+                    parent = parent.parent;
+                }
+            }
             this.activeHandle = targetObject;
             this.initialMousePos.copy(this.mouse);
             
@@ -565,8 +653,9 @@ class TrimBoxManipulator {
                 this.initialBoxRotation = this.trimBox.rotation.y;
             }
             
-            // 選択時の色変更
+            // 面ハンドルをクリックした場合はその面を選択（他の矢印は消す）
             if (userData.type === 'face') {
+                this.selectFace(this.activeHandle);
                 // 円錐（Mesh）の場合は直接material.colorを変更
                 if (this.activeHandle.material) {
                     this.activeHandle.material.color.setHex(0xffff00);
@@ -581,6 +670,26 @@ class TrimBoxManipulator {
                         }
                     });
                 }
+            } else if (userData.type === 'edge') {
+                // edgeはGroupかもしれないので、tubeを黄色に＆ヘッドは表示＆黄色
+                let group = this.activeHandle.type === 'Group' ? this.activeHandle : this.activeHandle.parent;
+                if (group && group.type === 'Group') {
+                    const tube = group.children[0];
+                    const headStart = group.children[1];
+                    const headEnd = group.children[2];
+                    if (tube && tube.material) tube.material.color.setHex(0xffff00);
+                    if (headStart) {
+                        headStart.visible = true;
+                        if (headStart.material) headStart.material.color.setHex(0xffff00);
+                    }
+                    if (headEnd) {
+                        headEnd.visible = true;
+                        if (headEnd.material) headEnd.material.color.setHex(0xffff00);
+                    }
+                } else if (this.activeHandle.material) {
+                    this.activeHandle.material.color.setHex(0xffff00);
+                }
+                console.log('通常ハンドル色変更:', userData.type);
             } else {
                 this.activeHandle.material.color.setHex(0xffff00);
                 console.log('通常ハンドル色変更:', userData.type);
@@ -649,7 +758,15 @@ class TrimBoxManipulator {
         
         // 新しい面を選択
         this.selectedFace = faceHandle;
-        faceHandle.visible = true;
+        // 選択された矢印以外は非表示
+        this.faceHandles.forEach(h => {
+            h.visible = (h === faceHandle);
+        });
+        // ホバー中の矢印は解除
+        if (this.hoveredFaceHandle && this.hoveredFaceHandle !== this.selectedFace) {
+            this.hoveredFaceHandle.visible = false;
+        }
+        this.hoveredFaceHandle = null;
         
 
         
@@ -693,6 +810,17 @@ class TrimBoxManipulator {
             
             console.log('面選択を解除');
         }
+        // ホバー矢印を消去
+        if (this.hoveredFaceHandle) {
+            if (this.hoveredFaceHandle !== this.selectedFace) {
+                this.hoveredFaceHandle.visible = false;
+            }
+            this.hoveredFaceHandle = null;
+        }
+        // 念のため他の面ハンドルも非表示（ホバー表示の取りこぼし対策）
+        this.faceHandles.forEach(h => {
+            if (h !== this.selectedFace) h.visible = false;
+        });
     }
 
     getCornerPositions() {
@@ -705,6 +833,11 @@ class TrimBoxManipulator {
     }
 
     onMouseMove(event) {
+        // トリミングボックスが存在しない場合は何もしない
+        if (!this.trimBox) {
+            return;
+        }
+        
         // マウス移動時に長押しタイマーをクリア（移動したら長押し判定をキャンセル）
         if (this.longPressTimer && !this.isLongPressActive) {
             this.clearLongPressTimer();
@@ -722,7 +855,7 @@ class TrimBoxManipulator {
             );
             const intersects = this.raycaster.intersectObjects(targetHandles, true);
             
-            // ホバー処理
+            // ホバー処理（ドラッグ中は実施しない）
             let newHoveredHandle = null;
             if (intersects.length > 0) {
                 // userDataを持つ親を探す（最大3階層まで遡る）
@@ -746,6 +879,71 @@ class TrimBoxManipulator {
             
             // ホバー状態の変更処理
             this.updateHoverState(newHoveredHandle);
+
+            // 面またはその矢印にマウスがある間は該当矢印を表示し続ける
+            let desiredFaceHandle = null;
+            if (this.trimBox) {
+                const faceIntersects = this.raycaster.intersectObject(this.trimBox);
+                if (faceIntersects.length > 0) {
+                    const intersection = faceIntersects[0];
+                    const normal = intersection.face.normal.clone();
+                    normal.transformDirection(this.trimBox.matrixWorld);
+                    const absNormal = new THREE.Vector3(Math.abs(normal.x), Math.abs(normal.y), Math.abs(normal.z));
+                    let axis, direction;
+                    if (absNormal.x > absNormal.y && absNormal.x > absNormal.z) {
+                        axis = 'x';
+                        direction = normal.x > 0 ? 1 : -1;
+                    } else if (absNormal.y > absNormal.z) {
+                        axis = 'y';
+                        direction = normal.y > 0 ? 1 : -1;
+                    } else {
+                        axis = 'z';
+                        direction = normal.z > 0 ? 1 : -1;
+                    }
+                    desiredFaceHandle = this.faceHandles.find(handle => 
+                        handle.userData.axis === axis && handle.userData.direction === direction
+                    ) || null;
+                }
+            }
+
+            // newHoveredHandle が面ハンドルの場合はそれを優先
+            if (!desiredFaceHandle && newHoveredHandle && newHoveredHandle.userData && newHoveredHandle.userData.type === 'face') {
+                desiredFaceHandle = newHoveredHandle;
+            }
+
+            if (this.selectedFace) {
+                // 選択中: 選択矢印は常時表示しつつ、ホバー中の矢印も並行表示
+                if (desiredFaceHandle && desiredFaceHandle !== this.selectedFace) {
+                    this.faceHandles.forEach(h => {
+                        h.visible = (h === this.selectedFace || h === desiredFaceHandle);
+                    });
+                    this.hoveredFaceHandle = desiredFaceHandle;
+                } else {
+                    // ホバー対象が無い/選択と同一なら選択のみ表示
+                    this.faceHandles.forEach(h => {
+                        h.visible = (h === this.selectedFace);
+                    });
+                    if (this.hoveredFaceHandle && this.hoveredFaceHandle !== this.selectedFace) {
+                        this.hoveredFaceHandle.visible = false;
+                    }
+                    this.hoveredFaceHandle = null;
+                }
+            } else {
+                // 未選択: ホバー対象のみ表示
+                if (desiredFaceHandle) {
+                    this.faceHandles.forEach(h => {
+                        h.visible = (h === desiredFaceHandle);
+                    });
+                    this.hoveredFaceHandle = desiredFaceHandle;
+                } else {
+                    // 何もホバーしていなければ全て非表示
+                    this.faceHandles.forEach(h => { h.visible = false; });
+                    if (this.hoveredFaceHandle) {
+                        this.hoveredFaceHandle.visible = false;
+                    }
+                    this.hoveredFaceHandle = null;
+                }
+            }
             return;
         }
         
@@ -779,14 +977,53 @@ class TrimBoxManipulator {
         const adjustedDeltaX = deltaX * sensitivityMultiplier;
         const adjustedDeltaY = deltaY * sensitivityMultiplier;
         
-        this.updateBoxFromHandle(adjustedDeltaX, adjustedDeltaY);
+        // ドラッグ中のみ更新
+        if (this.isDragging) {
+            this.updateBoxFromHandle(adjustedDeltaX, adjustedDeltaY);
+        }
     }
 
     onMouseUp(event) {
         // 長押しタイマーをクリア（マウスアップで長押し判定終了）
         this.clearLongPressTimer();
         
+        // ドラッグ状態を必ず解除（先に実行）
+        this.isDragging = false;
+        this.isLongPressActive = false;
+        this.clickedFaceIntersection = null;
+        this.renderer.domElement.style.cursor = 'default';
+        
+        // ハンドル操作終了時にカメラコントロールを必ず再有効化
+        this.enableOrbitControls();
+        this.hideTrimmingInfo();
+        
         if (this.activeHandle) {
+            // エッジ（回転）ハンドルだった場合はヘッドを隠す＆色を戻す（子Meshがactiveでも親Groupを探す）
+            if (this.activeHandle.userData && this.activeHandle.userData.type === 'edge') {
+                let group = null;
+                let cur = this.activeHandle;
+                for (let i = 0; i < 3 && cur; i++) {
+                    if (cur.type === 'Group') { group = cur; break; }
+                    cur = cur.parent;
+                }
+                if (group) {
+                    const tube = group.children[0];
+                    const headStart = group.children[1];
+                    const headEnd = group.children[2];
+                    if (headStart) {
+                        headStart.visible = false;
+                        if (headStart.material) headStart.material.color.setHex(0xffffff);
+                    }
+                    if (headEnd) {
+                        headEnd.visible = false;
+                        if (headEnd.material) headEnd.material.color.setHex(0xffffff);
+                    }
+                    if (tube && tube.material) tube.material.color.setHex(0xffffff);
+                } else if (this.activeHandle.material) {
+                    // 最低限、色だけは戻す
+                    this.activeHandle.material.color.setHex(0xffffff);
+                }
+            }
             // 箱移動モードの場合は色をリセット
             if (this.activeHandle.userData.type === 'boxMove') {
                 this.setBoxMoveColors(false);
@@ -795,22 +1032,28 @@ class TrimBoxManipulator {
             }
             this.activeHandle = null;
         }
-        this.isDragging = false;
-        this.isLongPressActive = false;
-        this.clickedFaceIntersection = null;
-        this.renderer.domElement.style.cursor = 'default';
         
-        // ハンドル操作終了時にカメラコントロールを再有効化
-        this.enableOrbitControls();
-        this.hideTrimmingInfo();
-    }
-
-    onMouseLeave(event) {
-        // マウスが3Dビューエリア外に出た時、ホバー状態をリセット
+        // 念のためホバー状態もリセット
         if (this.hoveredHandle) {
             this.resetHoverColor(this.hoveredHandle);
             this.hoveredHandle = null;
         }
+    }
+
+    onMouseLeave(event) {
+        // マウスが3Dビューエリア外に出た時、ドラッグ状態も含めて完全リセット
+        if (this.isDragging) {
+            this.onMouseUp(event);
+        }
+        
+        if (this.hoveredHandle) {
+            this.resetHoverColor(this.hoveredHandle);
+            this.hoveredHandle = null;
+        }
+        if (this.hoveredFaceHandle && this.hoveredFaceHandle !== this.selectedFace) {
+            this.hoveredFaceHandle.visible = false;
+        }
+        this.hoveredFaceHandle = null;
         this.renderer.domElement.style.cursor = 'default';
     }
 
@@ -850,7 +1093,21 @@ class TrimBoxManipulator {
                 }
                 break;
             case 'edge':
-                if (handle.material) {
+                // Group（チューブ＋ヘッド）を前提にする
+                if (handle.type === 'Group') {
+                    const tube = handle.children[0];
+                    const headStart = handle.children[1];
+                    const headEnd = handle.children[2];
+                    if (tube && tube.material) tube.material.color.setHex(hoverColor);
+                    if (headStart) {
+                        headStart.visible = true;
+                        if (headStart.material) headStart.material.color.setHex(hoverColor);
+                    }
+                    if (headEnd) {
+                        headEnd.visible = true;
+                        if (headEnd.material) headEnd.material.color.setHex(hoverColor);
+                    }
+                } else if (handle.material) {
                     handle.material.color.setHex(hoverColor);
                 }
                 break;
@@ -886,7 +1143,20 @@ class TrimBoxManipulator {
                 }
                 break;
             case 'edge':
-                if (handle.material) {
+                if (handle.type === 'Group') {
+                    const tube = handle.children[0];
+                    const headStart = handle.children[1];
+                    const headEnd = handle.children[2];
+                    if (tube && tube.material) tube.material.color.setHex(normalColor);
+                    if (headStart) {
+                        headStart.visible = false;
+                        if (headStart.material) headStart.material.color.setHex(normalColor);
+                    }
+                    if (headEnd) {
+                        headEnd.visible = false;
+                        if (headEnd.material) headEnd.material.color.setHex(normalColor);
+                    }
+                } else if (handle.material) {
                     handle.material.color.setHex(normalColor);
                 }
                 break;
@@ -897,6 +1167,7 @@ class TrimBoxManipulator {
                 break;
         }
     }
+
 
     // 長押し検出開始
     startLongPressDetection(intersection) {
@@ -949,8 +1220,8 @@ class TrimBoxManipulator {
     setBoxMoveColors(isMoving) {
         if (!this.trimBox || !this.boxHelper) return;
         
-        const color = isMoving ? 0x0066ff : this.boxColor; // 青色 または 元の色
-        const opacity = isMoving ? 0.3 : this.boxOpacity; // 移動時は少し濃く
+        const color = isMoving ? 0xffff30 : this.boxColor; // 長押し移動時は #ffff30 に変更
+        const opacity = isMoving ? 0.2 : this.boxOpacity; // 移動時は20%
         
         // 箱の面の色を変更
         if (this.trimBox.material) {
@@ -977,11 +1248,11 @@ class TrimBoxManipulator {
         
         // 移動時のレンダリング順序を調整（最前面に表示）
         if (isMoving) {
-            this.trimBox.renderOrder = 1003; // 最高レベルの前面表示
-            this.boxHelper.renderOrder = 1004; // さらに前面（境界線より）
+            this.trimBox.renderOrder = 10001; // 非常に前面
+            this.boxHelper.renderOrder = 10002; // エッジラインは常に最前面
         } else {
-            this.trimBox.renderOrder = 0; // デフォルトに戻す
-            this.boxHelper.renderOrder = 1000; // 境界線の元の順序に戻す
+            this.trimBox.renderOrder = 0; // デフォルト
+            this.boxHelper.renderOrder = 10000; // 常時最前面
         }
         
         console.log('箱移動色変更:', { 
@@ -1671,6 +1942,8 @@ class TrimBoxManipulator {
     }
 
     clear() {
+        console.log('=== TrimBoxManipulator.clear() 開始 ===');
+        
         // クリア時にカメラコントロールを再有効化
         this.enableOrbitControls();
         
@@ -1708,6 +1981,7 @@ class TrimBoxManipulator {
                 if (handle.material) handle.material.dispose();
             }
         });
+
         
         // 回転軸をクリア
         this.rotationAxes.forEach(axis => {
@@ -1724,6 +1998,29 @@ class TrimBoxManipulator {
         this.cornerHandles = [];
         this.rotationAxes = [];
         this.initialEdgeRotations = []; // 初期回転もクリア
+        this.activeHandle = null; // アクティブなハンドルをクリア
+        this.hoveredHandle = null; // ホバー中のハンドルをクリア
+        this.hoveredFaceHandle = null; // ホバー中の面ハンドルをクリア
+        
+        console.log('=== TrimBoxManipulator.clear() 完了 ===');
+        
+        // クリア後のシーンをデバッグ
+        this.debugScene();
+    }
+
+    debugScene() {
+        console.log('=== シーン内オブジェクト一覧 ===');
+        this.scene.children.forEach((child, idx) => {
+            const color = child.material?.color?.getHex();
+            const colorStr = color ? `0x${color.toString(16).padStart(6, '0')}` : 'N/A';
+            console.log(`${idx}: ${child.type} | name="${child.name}" | color=${colorStr} | visible=${child.visible}`);
+            
+            // 黄色系のオブジェクトを特定
+            if (color && (color === 0xffff00 || color === 0xffff99)) {
+                console.warn(`⚠️ 黄色いオブジェクト発見: ${child.type} | userData=`, child.userData);
+            }
+        });
+        console.log('===========================');
     }
 
     updateBoxScaleGeometry() {
@@ -1873,8 +2170,13 @@ class TrimBoxManipulator {
 
     setConeHeight(height) {
         this.coneHeight = height;
+        // カスタム矢印使用時はスケールに反映（共通UIで一元制御）
+        if (this.useCustomArrow) {
+            this.customArrowScale = Math.max(0.01, height * 0.10);
+        }
         this.updateArrowSizes();
     }
+
 
     // カスタム矢印制御メソッド
     setUseCustomArrow(use) {
@@ -1910,6 +2212,11 @@ class TrimBoxManipulator {
 
         // 新しいサイズで面ハンドルを再作成
         if (this.trimBox) {
+            // 既存の選択状態（axis/direction）を保存
+            const selectedInfo = this.selectedFace && this.selectedFace.userData ? {
+                axis: this.selectedFace.userData.axis,
+                direction: this.selectedFace.userData.direction
+            } : null;
             const box = new THREE.Box3().setFromObject(this.trimBox);
             const min = box.min;
             const max = box.max;
@@ -1926,15 +2233,14 @@ class TrimBoxManipulator {
                 { pos: new THREE.Vector3(center.x, center.y, min.z - offset), type: 'face', axis: 'z', direction: -1 }
             ];
 
-            // 面ハンドルを作成（現在の可視性を保持）
-            const shouldBeVisible = this.selectedFace !== null;
-            
+            // 面ハンドルを作成（選択されているもののみ可視）
             facePositions.forEach(handleData => {
                 // 新しい矢印Groupを作成（面データを渡す）
                 const handle = this.createArrowGeometry(handleData);
                 handle.position.copy(handleData.pos);
                 handle.userData = handleData;
-                handle.visible = shouldBeVisible; // 現在の表示状態を保持
+                // 選択情報と一致するもののみ表示
+                handle.visible = selectedInfo ? (handleData.axis === selectedInfo.axis && handleData.direction === selectedInfo.direction) : false;
                 
                 // 矢印を面の法線方向に向ける
                 this.orientArrowHandle(handle, handleData);
@@ -1942,6 +2248,11 @@ class TrimBoxManipulator {
                 this.scene.add(handle);
                 this.handles.push(handle);
                 this.faceHandles.push(handle);
+
+                // 新しく生成したハンドルに選択を張り替え
+                if (selectedInfo && handle.visible) {
+                    this.selectedFace = handle;
+                }
             });
 
             console.log('円錐サイズ更新完了:', {
@@ -2264,15 +2575,27 @@ class TabManager {
         try {
             const response = await fetch('./Scaniverse 2024-07-21 155128.ply');
             if (!response.ok) {
-                console.warn('デフォルトPLYファイルが見つかりません');
+                console.warn('デフォルトPLYファイルが見つかりません - 初期状態で待機します');
+                // ボタンを無効のままにする（モデルがない状態）
                 return;
             }
             
             const arrayBuffer = await response.arrayBuffer();
+            if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+                console.error('デフォルトPLYファイルが空です');
+                return;
+            }
+            
             const tab = this.createTab('デフォルト', './Scaniverse 2024-07-21 155128.ply', true);
             
             // PLYファイルを読み込み
             await this.plyViewer.loadPLYFromArrayBuffer(arrayBuffer, tab.id);
+            
+            // モデルが正常に読み込まれたか確認
+            if (!this.plyViewer.currentModel) {
+                console.error('デフォルトモデルの作成に失敗しました');
+                return;
+            }
             
             // デフォルトモデルの向きを設定（等角 + x軸-90度）
             await this.setDefaultOrientation(tab.id);
@@ -2280,6 +2603,7 @@ class TabManager {
             console.log('デフォルトPLYファイルを読み込みました');
         } catch (error) {
             console.error('デフォルトPLYファイルの読み込みエラー:', error);
+            // エラー時は何も表示せず、ボタンを無効のままにする
         }
     }
 
@@ -2476,6 +2800,11 @@ class PLYViewer {
         this.tabManager = null;
         this.tabData = new Map(); // タブごとのデータを保存
         
+        // 天球関連
+        this.skyboxSphere = null;
+        this.skyboxVisible = true; // 初期状態でON
+        this.defaultBackgroundColor = new THREE.Color(0x222222);
+        
         this.init();
         this.setupEventListeners();
         
@@ -2490,7 +2819,7 @@ class PLYViewer {
         const rect = viewer.getBoundingClientRect();
         
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x222222);
+        this.scene.background = this.defaultBackgroundColor;
         
         this.camera = new THREE.PerspectiveCamera(
             75, 
@@ -2523,21 +2852,42 @@ class PLYViewer {
         this.trimBoxManipulator = new TrimBoxManipulator(this.scene, this.camera, this.renderer, this.controls, () => this.currentModel);
         this.realtimePreview = new RealtimePreview();
         
+        // 初期化時にトリミングボックスをクリア（念のため）
+        this.trimBoxManipulator.clear();
+        this.trimBoxVisible = false;
+        
+        // 天球を初期化
+        this.initSkybox();
+        
         this.animate();
         
         window.addEventListener('resize', () => this.onWindowResize());
+
+        // 設定UIの初期表示値をマニピュレータから反映
+        const arrowHeadSize = document.getElementById('arrowHeadSize');
+        const arrowHeadSizeValue = document.getElementById('arrowHeadSizeValue');
+
+        if (arrowHeadSize && arrowHeadSizeValue) {
+            arrowHeadSize.value = this.trimBoxManipulator.coneHeight.toFixed(2);
+            arrowHeadSizeValue.textContent = this.trimBoxManipulator.coneHeight.toFixed(2);
+        }
     }
 
     setupEventListeners() {
         const fileInput = document.getElementById('fileInput');
         const dropZone = document.getElementById('dropZone');
         const toggleDisplayMode = document.getElementById('toggleDisplayMode');
+        const toggleSkybox = document.getElementById('toggleSkybox');
         const toggleTrimBox = document.getElementById('toggleTrimBox');
         const toggleOutsideView = document.getElementById('toggleOutsideView');
 
         const executeTrim = document.getElementById('executeTrim');
         const resetModel = document.getElementById('resetModel');
         const resetCamera = document.getElementById('resetCamera');
+        
+        // 設定UI要素
+        const arrowHeadSize = document.getElementById('arrowHeadSize');
+        const arrowHeadSizeValue = document.getElementById('arrowHeadSizeValue');
 
         fileInput.addEventListener('change', (e) => this.loadPLYFile(e.target.files[0]));
         
@@ -2559,6 +2909,7 @@ class PLYViewer {
         });
 
         toggleDisplayMode.addEventListener('click', () => this.toggleDisplayMode());
+        toggleSkybox.addEventListener('change', (e) => this.toggleSkybox(e.target.checked));
         toggleTrimBox.addEventListener('click', () => this.toggleTrimBox());
         toggleOutsideView.addEventListener('click', () => this.toggleOutsideView());
 
@@ -2569,6 +2920,14 @@ class PLYViewer {
 
         // 向き調整関連のイベントリスナー
         this.setupOrientationEventListeners();
+
+        // 設定UIイベント: 矢印の頭の大きさ
+        if (arrowHeadSize && arrowHeadSizeValue) {
+            arrowHeadSize.addEventListener('input', () => {
+                arrowHeadSizeValue.textContent = Number(arrowHeadSize.value).toFixed(2);
+                this.trimBoxManipulator.setConeHeight(Number(arrowHeadSize.value));
+            });
+        }
     }
 
 
@@ -2615,35 +2974,52 @@ class PLYViewer {
     }
 
     createModel(geometry) {
-        geometry.computeBoundingBox();
-        
-        let material;
-        if (this.isPointMode) {
-            material = new THREE.PointsMaterial({
-                size: 0.035,
-                vertexColors: geometry.attributes.color ? true : false,
-                color: geometry.attributes.color ? 0xffffff : 0x00aaff
-            });
-            this.currentModel = new THREE.Points(geometry, material);
-        } else {
-            material = new THREE.MeshLambertMaterial({
-                vertexColors: geometry.attributes.color ? true : false,
-                color: geometry.attributes.color ? 0xffffff : 0x00aaff,
-                side: THREE.DoubleSide
-            });
-            this.currentModel = new THREE.Mesh(geometry, material);
+        if (!geometry || !geometry.attributes || !geometry.attributes.position) {
+            console.error('createModel: 無効なジオメトリ');
+            return;
         }
-        
-        // 保存された向きがあれば適用
-        if (!this.isOrientationMode && this.modelRotation) {
-            this.currentModel.rotation.copy(this.modelRotation);
+
+        // モデル作成時に既存のトリミングボックスをクリア
+        if (this.trimBoxManipulator) {
+            this.trimBoxManipulator.clear();
         }
-        
-        this.scene.add(this.currentModel);
-        this.originalModel = this.currentModel.clone();
-        this.realtimePreview.setOriginalModel(this.currentModel);
-        
-        console.log('モデル作成完了:', this.currentModel);
+        this.trimBoxVisible = false;
+
+        try {
+            geometry.computeBoundingBox();
+            
+            let material;
+            if (this.isPointMode) {
+                material = new THREE.PointsMaterial({
+                    size: 0.035,
+                    vertexColors: geometry.attributes.color ? true : false,
+                    color: geometry.attributes.color ? 0xffffff : 0x00aaff
+                });
+                this.currentModel = new THREE.Points(geometry, material);
+            } else {
+                material = new THREE.MeshLambertMaterial({
+                    vertexColors: geometry.attributes.color ? true : false,
+                    color: geometry.attributes.color ? 0xffffff : 0x00aaff,
+                    side: THREE.DoubleSide
+                });
+                this.currentModel = new THREE.Mesh(geometry, material);
+            }
+            
+            // 保存された向きがあれば適用
+            if (!this.isOrientationMode && this.modelRotation) {
+                this.currentModel.rotation.copy(this.modelRotation);
+            }
+            
+            this.scene.add(this.currentModel);
+            this.originalModel = this.currentModel.clone();
+            this.realtimePreview.setOriginalModel(this.currentModel);
+            
+            console.log('モデル作成完了:', this.currentModel);
+        } catch (error) {
+            console.error('モデル作成エラー:', error);
+            this.currentModel = null;
+            this.originalModel = null;
+        }
     }
 
     clearModel() {
@@ -2673,10 +3049,14 @@ class PLYViewer {
         dropZone.classList.add('hidden');
 
         try {
+            if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+                throw new Error('無効なデータ: ArrayBufferが空です');
+            }
+
             const loader = new PLYLoader();
             const geometry = loader.parse(arrayBuffer);
             
-            if (!geometry.attributes.position) {
+            if (!geometry || !geometry.attributes || !geometry.attributes.position) {
                 throw new Error('無効なPLYファイル: 頂点データが見つかりません');
             }
 
@@ -2702,17 +3082,27 @@ class PLYViewer {
         } catch (error) {
             console.error('PLYファイルの読み込みエラー:', error);
             alert('PLYファイルの読み込みに失敗しました: ' + error.message);
+            // エラー時は現在のモデルをクリアして安全な状態に戻す
+            this.clearModel();
         } finally {
             loadingIndicator.style.display = 'none';
         }
     }
 
     switchToTabData(tab) {
-        if (!tab) return;
+        if (!tab) {
+            console.warn('switchToTabData: tabがnullです');
+            return;
+        }
 
         const tabData = this.tabData.get(tab.id);
         if (!tabData) {
             console.warn('タブデータが見つかりません:', tab.id);
+            return;
+        }
+
+        if (!tabData.currentGeometry || !tabData.currentGeometry.attributes) {
+            console.error('switchToTabData: 無効なジオメトリデータ');
             return;
         }
 
@@ -2725,6 +3115,12 @@ class PLYViewer {
         this.originalModelRotation.copy(tabData.originalModelRotation);
         
         this.createModel(tabData.currentGeometry.clone());
+        
+        // createModelが失敗した場合は処理を中断
+        if (!this.currentModel) {
+            console.error('switchToTabData: モデルの作成に失敗しました');
+            return;
+        }
         
         // カメラ位置が保存されている場合は復元
         if (tabData.cameraPosition && tabData.cameraTarget) {
@@ -2784,7 +3180,7 @@ class PLYViewer {
         
         const maxDim = Math.max(size.x, size.y, size.z);
         const fov = this.camera.fov * (Math.PI / 180);
-        let cameraZ = Math.abs(maxDim / Math.sin(fov / 2)) * 2;
+        let cameraZ = Math.abs(maxDim / Math.sin(fov / 2)) * 0.5; // より近い位置から開始（元は*2）
         
         this.camera.position.set(center.x, center.y, center.z + cameraZ);
         this.controls.target.copy(center);
@@ -2841,7 +3237,10 @@ class PLYViewer {
     }
 
     toggleTrimBox() {
-        if (!this.currentModel) return;
+        if (!this.currentModel) {
+            console.warn('toggleTrimBox: currentModelが存在しません');
+            return;
+        }
         
         this.trimBoxVisible = !this.trimBoxVisible;
         
@@ -2866,6 +3265,10 @@ class PLYViewer {
     }
 
     updatePreview() {
+        if (!this.currentModel) {
+            console.warn('updatePreview: currentModelが存在しません');
+            return;
+        }
         if (this.trimBoxVisible && this.trimBoxManipulator.trimBox) {
             this.realtimePreview.hideOriginalModel();
             this.realtimePreview.updatePreview(this.scene, this.trimBoxManipulator.trimBox);
@@ -3025,11 +3428,14 @@ class PLYViewer {
     }
 
     enableControls() {
-        document.getElementById('toggleTrimBox').disabled = false;
-        document.getElementById('toggleOutsideView').disabled = false;
-        document.getElementById('executeTrim').disabled = false;
-        document.getElementById('resetModel').disabled = false;
-        document.getElementById('resetCamera').disabled = false;
+        // currentModelが存在する場合のみコントロールを有効化
+        if (this.currentModel) {
+            document.getElementById('toggleTrimBox').disabled = false;
+            document.getElementById('toggleOutsideView').disabled = false;
+            document.getElementById('executeTrim').disabled = false;
+            document.getElementById('resetModel').disabled = false;
+            document.getElementById('resetCamera').disabled = false;
+        }
     }
 
     toggleOutsideView() {
@@ -3145,6 +3551,89 @@ class PLYViewer {
         });
     }
 
+    // 天球を初期化
+    initSkybox() {
+        const loader = new THREE.TextureLoader();
+        loader.load(
+            'pic/background-type2-1.png',
+            (texture) => {
+                // テクスチャの設定を調整して画像をそのまま表示
+                texture.colorSpace = THREE.SRGBColorSpace; // sRGB色空間を使用（そのままの色で表示）
+                texture.flipY = true; // Y軸を反転して正しい向きに
+                this.createSkybox(texture);
+                console.log('天球画像の読み込み完了');
+            },
+            (progress) => {
+                console.log('天球画像読み込み中:', progress);
+            },
+            (error) => {
+                console.warn('天球画像の読み込みに失敗:', error);
+            }
+        );
+    }
+
+    // 天球を作成
+    createSkybox(texture) {
+        // 球体ジオメトリを作成（内側から見るため、スケールをマイナスにする）
+        const geometry = new THREE.SphereGeometry(500, 60, 40);
+        geometry.scale(-1, 1, 1); // X軸を反転して内側から見えるようにする
+
+        // マテリアルを作成
+        const material = new THREE.MeshBasicMaterial({
+            map: texture,
+            side: THREE.FrontSide, // スケール反転しているのでFrontSideを使用
+            depthWrite: false, // 天球は深度バッファに書き込まない
+            toneMapped: false // トーンマッピングを無効にして画像をそのまま表示
+        });
+
+        // 天球メッシュを作成
+        this.skyboxSphere = new THREE.Mesh(geometry, material);
+        this.skyboxSphere.visible = this.skyboxVisible;
+        this.skyboxSphere.renderOrder = -1; // 最初に描画
+        
+        // シーンに追加
+        this.scene.add(this.skyboxSphere);
+        
+        // 初期状態で天球がONの場合、背景色を無効にする
+        if (this.skyboxVisible) {
+            this.scene.background = null;
+        }
+        
+        console.log('天球作成完了', {
+            textureLoaded: texture !== null,
+            textureSize: texture.image ? `${texture.image.width}x${texture.image.height}` : 'unknown'
+        });
+    }
+
+    // 天球の表示/非表示を切り替え
+    toggleSkybox(checked) {
+        // チェックボックスの状態を引数で受け取る（未指定の場合はトグル）
+        if (checked === undefined) {
+            this.skyboxVisible = !this.skyboxVisible;
+        } else {
+            this.skyboxVisible = checked;
+        }
+        
+        if (this.skyboxSphere) {
+            this.skyboxSphere.visible = this.skyboxVisible;
+        }
+        
+        // 背景色も切り替え
+        if (this.skyboxVisible) {
+            this.scene.background = null; // 天球表示時は背景色を無効
+        } else {
+            this.scene.background = this.defaultBackgroundColor; // デフォルト背景色に戻す
+        }
+        
+        // チェックボックスの状態を更新
+        const toggleCheckbox = document.getElementById('toggleSkybox');
+        if (toggleCheckbox) {
+            toggleCheckbox.checked = this.skyboxVisible;
+        }
+        
+        console.log('天球表示状態:', this.skyboxVisible);
+    }
+
     setupOrientationEventListeners() {
         // プリセット視点
         document.getElementById('presetFront').addEventListener('click', () => this.setPresetView('front'));
@@ -3192,7 +3681,9 @@ class PLYViewer {
         const center = box.getCenter(new THREE.Vector3());
         const size = box.getSize(new THREE.Vector3());
         const maxDim = Math.max(size.x, size.y, size.z);
-        const distance = maxDim * 2.5;
+        // fitCameraToModel()と同じ計算方法を使用して、近い位置から開始
+        const fov = this.camera.fov * (Math.PI / 180);
+        const distance = Math.abs(maxDim / Math.sin(fov / 2)) * 0.5;
 
         switch (viewType) {
             case 'front':
