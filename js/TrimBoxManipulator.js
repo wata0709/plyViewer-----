@@ -77,6 +77,7 @@ class TrimBoxManipulator {
 
         // 面ハイライト用
         this.faceHighlight = null; // ハイライト表示用の面メッシュ
+        this.edgeHighlights = []; // ハイライト表示用の辺ライン配列
 
         this.raycaster = new THREE.Raycaster();
         // Lineのレイキャスト判定を厳密にする
@@ -1027,6 +1028,9 @@ class TrimBoxManipulator {
             // 面のハイライトもクリア
             this.clearFaceHighlight();
 
+            // 辺のハイライトもクリア
+            this.clearEdgeHighlights();
+
             this.selectedFace = null;
 
             console.log('面選択を解除');
@@ -1216,6 +1220,9 @@ class TrimBoxManipulator {
 
         // 面のハイライトをクリア
         this.clearFaceHighlight();
+
+        // 辺のハイライトをクリア
+        this.clearEdgeHighlights();
 
         // ハンドル操作終了時にカメラコントロールを必ず再有効化
         this.enableOrbitControls();
@@ -2368,6 +2375,9 @@ class TrimBoxManipulator {
         this.trimBox.add(this.faceHighlight);
 
         console.log('面ハイライト表示:', { axis, direction });
+
+        // 対応する辺もハイライト表示
+        this.highlightEdges(faceHandle);
     }
 
     // 面のハイライトを更新（箱のサイズ変更時に呼ばれる）
@@ -2411,6 +2421,95 @@ class TrimBoxManipulator {
         this.faceHighlight.geometry = geometry;
         this.faceHighlight.position.copy(position);
         this.faceHighlight.rotation.copy(rotation);
+
+        // 辺ハイライトも更新
+        this.highlightEdges(this.activeHandle);
+    }
+
+    // 辺をハイライト表示する
+    highlightEdges(faceHandle) {
+        if (!this.trimBox || !faceHandle) return;
+
+        // 既存の辺ハイライトをクリア
+        this.clearEdgeHighlights();
+
+        const userData = faceHandle.userData;
+        const axis = userData.axis;
+        const direction = userData.direction;
+
+        // 箱のサイズを取得
+        const boxSize = new THREE.Vector3();
+        this.trimBox.geometry.computeBoundingBox();
+        const bbox = this.trimBox.geometry.boundingBox;
+        boxSize.x = bbox.max.x - bbox.min.x;
+        boxSize.y = bbox.max.y - bbox.min.y;
+        boxSize.z = bbox.max.z - bbox.min.z;
+
+        const halfX = boxSize.x / 2;
+        const halfY = boxSize.y / 2;
+        const halfZ = boxSize.z / 2;
+
+        // 面の4つの辺の座標を計算
+        let edgeLines = [];
+
+        if (axis === 'x') {
+            // X軸の面（4本の辺）
+            const x = direction * halfX;
+            edgeLines = [
+                [new THREE.Vector3(x, -halfY, -halfZ), new THREE.Vector3(x, halfY, -halfZ)],
+                [new THREE.Vector3(x, halfY, -halfZ), new THREE.Vector3(x, halfY, halfZ)],
+                [new THREE.Vector3(x, halfY, halfZ), new THREE.Vector3(x, -halfY, halfZ)],
+                [new THREE.Vector3(x, -halfY, halfZ), new THREE.Vector3(x, -halfY, -halfZ)]
+            ];
+        } else if (axis === 'y') {
+            // Y軸の面（4本の辺）
+            const y = direction * halfY;
+            edgeLines = [
+                [new THREE.Vector3(-halfX, y, -halfZ), new THREE.Vector3(halfX, y, -halfZ)],
+                [new THREE.Vector3(halfX, y, -halfZ), new THREE.Vector3(halfX, y, halfZ)],
+                [new THREE.Vector3(halfX, y, halfZ), new THREE.Vector3(-halfX, y, halfZ)],
+                [new THREE.Vector3(-halfX, y, halfZ), new THREE.Vector3(-halfX, y, -halfZ)]
+            ];
+        } else if (axis === 'z') {
+            // Z軸の面（4本の辺）
+            const z = direction * halfZ;
+            edgeLines = [
+                [new THREE.Vector3(-halfX, -halfY, z), new THREE.Vector3(halfX, -halfY, z)],
+                [new THREE.Vector3(halfX, -halfY, z), new THREE.Vector3(halfX, halfY, z)],
+                [new THREE.Vector3(halfX, halfY, z), new THREE.Vector3(-halfX, halfY, z)],
+                [new THREE.Vector3(-halfX, halfY, z), new THREE.Vector3(-halfX, -halfY, z)]
+            ];
+        }
+
+        // 各辺をハイライト表示
+        edgeLines.forEach(([start, end]) => {
+            const geometry = new THREE.BufferGeometry().setFromPoints([start, end]);
+            const material = new THREE.LineBasicMaterial({
+                color: 0x00dfff,
+                linewidth: 4,
+                depthTest: false,
+                transparent: true,
+                opacity: 1.0
+            });
+            const line = new THREE.Line(geometry, material);
+            line.renderOrder = 1000; // 最前面に表示
+            this.trimBox.add(line);
+            this.edgeHighlights.push(line);
+        });
+
+        console.log('辺ハイライト表示:', { axis, direction, edgeCount: this.edgeHighlights.length });
+    }
+
+    // 辺のハイライトをクリア
+    clearEdgeHighlights() {
+        this.edgeHighlights.forEach(line => {
+            if (line.parent) {
+                line.parent.remove(line);
+            }
+            line.geometry.dispose();
+            line.material.dispose();
+        });
+        this.edgeHighlights = [];
     }
 
     // 面のハイライトをクリア
@@ -2434,6 +2533,9 @@ class TrimBoxManipulator {
 
         // 面ハイライトをクリア
         this.clearFaceHighlight();
+
+        // 辺ハイライトをクリア
+        this.clearEdgeHighlights();
 
         // 面選択をクリア
         this.deselectFace();
