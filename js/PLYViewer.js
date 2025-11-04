@@ -533,7 +533,15 @@ class PLYViewer {
             this.gridMesh.material.dispose();
             this.gridMesh = null;
         }
-        
+
+        // 境界表示モデルをクリア
+        if (this.boundaryDisplayModel) {
+            this.scene.remove(this.boundaryDisplayModel);
+            this.boundaryDisplayModel.geometry.dispose();
+            this.boundaryDisplayModel.material.dispose();
+            this.boundaryDisplayModel = null;
+        }
+
         this.trimBoxManipulator.clear();
         this.realtimePreview.clearPreview(this.scene);
         this.trimBoxVisible = false;
@@ -1450,6 +1458,14 @@ class PLYViewer {
         this.trimBoxManipulator.clear();
         this.realtimePreview.clearPreview(this.scene);
         this.trimBoxVisible = false;
+
+        // 境界表示モデルをクリア
+        if (this.boundaryDisplayModel) {
+            this.scene.remove(this.boundaryDisplayModel);
+            this.boundaryDisplayModel.geometry.dispose();
+            this.boundaryDisplayModel.material.dispose();
+            this.boundaryDisplayModel = null;
+        }
 
         // 天球と背景色を元に戻す
         if (this.skyboxSphere) {
