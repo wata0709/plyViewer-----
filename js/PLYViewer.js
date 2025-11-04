@@ -752,8 +752,8 @@ class PLYViewer {
         
         // グリッドのサイズ（モデルの最大寸法の1.5倍程度に縮小）
         const maxDim = Math.max(size.x, size.y, size.z);
-        const gridSize = maxDim * 1.5;
-        const gridSpacing = maxDim * 0.1; // グリッドの間隔を細かく
+        const gridSize = maxDim * 6;
+        const gridSpacing = maxDim * 0.2; // グリッドの間隔を細かく
 
         // グリッドのY座標（モデルのすぐ下）
         // 実際の最小Y座標を使用（より正確）
@@ -778,8 +778,8 @@ class PLYViewer {
         // 遠近感を持たせるためのグリッド作成
         const vertices = [];
         const colors = [];
-        const gridColor = new THREE.Color(0x00ffff); // シアン色
-        const gridAlpha = 0.6; // 透明度
+        const gridColor = new THREE.Color(0x2B3140); // シアン色
+        const gridAlpha = 0.3; // 透明度
         
         // グリッドの分割数
         const divisions = Math.floor(gridSize / gridSpacing);
@@ -925,7 +925,26 @@ class PLYViewer {
         }
         
         this.trimBoxVisible = !this.trimBoxVisible;
-        
+
+        // スライスモード時の天球と背景色の制御
+        if (this.trimBoxVisible) {
+            // スライスモードON: 天球を非表示にして背景色を#0F0F0Fに
+            if (this.skyboxSphere) {
+                this.skyboxSphere.visible = false;
+            }
+            this.scene.background = new THREE.Color(0x0F0F0F);
+        } else {
+            // スライスモードOFF: 天球の表示状態を元に戻す
+            if (this.skyboxSphere) {
+                this.skyboxSphere.visible = this.skyboxVisible;
+            }
+            if (this.skyboxVisible) {
+                this.scene.background = null; // 天球表示時は背景色を無効
+            } else {
+                this.scene.background = this.defaultBackgroundColor; // デフォルト背景色
+            }
+        }
+
         // 白枠の表示/非表示
         const operationFrame = document.getElementById('operationFrame');
         if (operationFrame) {
