@@ -58,6 +58,12 @@ class TrimBoxManipulator {
         this.leaderThickness = 3;     // 引き出し線の太さ
         this.leaderRadius = this.leaderThickness * 0.01; // 0.03
         
+        // 矢印形状パラメータ
+        this.arrowShaftRadius = 1.0;  // 線部分（円柱）の半径倍率
+        this.arrowShaftHeight = 1.0;  // 線部分（円柱）の高さ倍率
+        this.arrowTipRadius = 1.0;    // 先端部分（円錐）の半径倍率
+        this.arrowTipHeight = 1.0;    // 先端部分（円錐）の高さ倍率
+        
         // カスタム矢印関連
         this.customArrowModel = null;    // カスタムOBJモデル
         this.useCustomArrow = true;      // カスタム矢印を常時使用
@@ -359,6 +365,7 @@ class TrimBoxManipulator {
     createArrowGeometry(faceData = null) {
         // カスタム矢印が利用可能で使用フラグがtrueの場合はカスタムモデルを使用
         if (this.useCustomArrow && this.customArrowModel && this.customArrowLoaded) {
+            const arrowGroup = new THREE.Group();
             const customArrow = this.customArrowModel.clone();
             
             // スケールを適用
@@ -372,17 +379,125 @@ class TrimBoxManipulator {
                 }
             });
             
-            console.log('カスタム矢印を使用 - スケール:', this.customArrowScale);
-            return customArrow;
-        } else {
-            // デフォルトの円錐を作成
-            const coneGeometry = new THREE.ConeGeometry(this.coneRadius, this.coneHeight, 8);
-            const coneMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
-            const cone = new THREE.Mesh(coneGeometry, coneMaterial);
+            arrowGroup.add(customArrow);
             
-            console.log('円錐矢印を使用 - 半径:', this.coneRadius, '高さ:', this.coneHeight);
-            return cone;
+            // カスタム矢印にも中心線を追加して視認性を確保
+            customArrow.updateMatrixWorld(true);
+            const boundingBox = new THREE.Box3().setFromObject(customArrow);
+            const size = boundingBox.getSize(new THREE.Vector3());
+            const center = boundingBox.getCenter(new THREE.Vector3());
+            
+            const axisLengths = {
+                x: size.x,
+                y: size.y,
+                z: size.z
+            };
+            
+            let primaryAxis = 'y';
+            if (axisLengths.x > axisLengths[primaryAxis]) primaryAxis = 'x';
+            if (axisLengths.z > axisLengths[primaryAxis]) primaryAxis = 'z';
+            
+            const secondaryAxes = ['x', 'y', 'z'].filter(axis => axis !== primaryAxis);
+            const secondaryMax = Math.max(
+                axisLengths[secondaryAxes[0]] || 0,
+                axisLengths[secondaryAxes[1]] || 0,
+                this.customArrowScale * 0.5
+            );
+            
+            const fallbackSize = this.customArrowScale * 5;
+            const primaryLength = axisLengths[primaryAxis] > 0 ? axisLengths[primaryAxis] : fallbackSize;
+            const lineHeight = primaryLength * 1.02;
+            const lineRadius = Math.max(secondaryMax * 0.1, fallbackSize * 0.05, 0.02);
+            
+            const lineGeometry = new THREE.CylinderGeometry(lineRadius, lineRadius, lineHeight, 12);
+            const lineMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0xffffff,
+                side: THREE.DoubleSide,
+                depthTest: false,
+                depthWrite: false
+            });
+            const line = new THREE.Mesh(lineGeometry, lineMaterial);
+            line.position.copy(center);
+            line.renderOrder = 1000;
+            
+            switch (primaryAxis) {
+                case 'x':
+                    line.rotation.z = Math.PI / 2;
+                    break;
+                case 'z':
+                    line.rotation.x = Math.PI / 2;
+                    break;
+                default:
+                    // y軸の場合は回転不要
+                    break;
+            }
+            
+            arrowGroup.add(line);
+            
+            console.log('カスタム矢印を使用 - スケール:', this.customArrowScale);
+            return arrowGroup;
         }
+        
+        return this.createDefaultArrowGeometry();
+    }
+
+    createDefaultArrowGeometry() {
+        // 矢印形状：線部分（円柱）と先端（円錐）を組み合わせ
+        const arrowGroup = new THREE.Group();
+        
+        // 基本サイズ
+        const baseShaftRadius = 0.03;
+        const baseShaftHeight = 0.15;
+        const baseTipRadius = 0.06;
+        const baseTipHeight = 0.12;
+        
+        // 個別パラメータ適用
+        const shaftRadius = baseShaftRadius * this.arrowShaftRadius;
+        const shaftHeight = baseShaftHeight * this.arrowShaftHeight;
+        const tipRadius = baseTipRadius * this.arrowTipRadius;
+        const tipHeight = baseTipHeight * this.arrowTipHeight;
+        
+        // 線部分（円柱）
+        const shaftGeometry = new THREE.CylinderGeometry(shaftRadius, shaftRadius, shaftHeight, 8);
+        const shaftMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const shaft = new THREE.Mesh(shaftGeometry, shaftMaterial);
+        
+        // 先端部分（円錐）
+        const tipGeometry = new THREE.ConeGeometry(tipRadius, tipHeight, 8);
+        const tipMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const tip = new THREE.Mesh(tipGeometry, tipMaterial);
+        
+        // 位置調整：円柱と円錐が適切に接続するように配置
+        const totalHeight = shaftHeight + tipHeight;
+        shaft.position.y = 0; // 円柱の中心を原点に配置
+        tip.position.y = shaftHeight * 0.5 + tipHeight * 0.5;   // 円錐を円柱の上端に配置
+        
+        // 矢印の中心軸に沿った線を追加（細い円柱として描画して確実に表示）
+        // 線を円柱より少し大きくして、はみ出すように表示
+        const lineRadius = Math.max(shaftRadius * 1.3, 0.02); // 線の半径は円柱の130%、最小0.02
+        const lineHeight = totalHeight * 1.02; // わずかに長くして端が見えるように
+        const lineGeometry = new THREE.CylinderGeometry(lineRadius, lineRadius, lineHeight, 8);
+        const lineMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            side: THREE.DoubleSide,  // 両面を描画
+            depthTest: false,        // 深度テストを無効にして常に最前面に表示
+            depthWrite: false,       // 深度バッファに書き込まない
+            transparent: false       // 透明度は使用しない
+        });
+        const line = new THREE.Mesh(lineGeometry, lineMaterial);
+        line.position.y = shaftHeight * 0.5; // 円柱の上端を中心として配置（円錐の底面と接する位置）
+        
+        // レンダリング順序を設定（同じグループ内では追加順序が重要）
+        shaft.renderOrder = 1;
+        tip.renderOrder = 2;
+        line.renderOrder = 1000; // 線を最前面に表示
+        
+        // 追加順序を変更：線を最後に追加して前面に表示
+        arrowGroup.add(shaft);
+        arrowGroup.add(tip);
+        arrowGroup.add(line); // 最後に追加して前面に表示
+        
+        return arrowGroup;
     }
 
     createQuarterCircleTubeGeometry() {
