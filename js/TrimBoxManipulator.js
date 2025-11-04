@@ -2483,7 +2483,11 @@ class TrimBoxManipulator {
 
         // 各辺をハイライト表示
         edgeLines.forEach(([start, end]) => {
-            const geometry = new THREE.BufferGeometry().setFromPoints([start, end]);
+            // ローカル座標からワールド座標に変換
+            const worldStart = start.clone().applyMatrix4(this.trimBox.matrixWorld);
+            const worldEnd = end.clone().applyMatrix4(this.trimBox.matrixWorld);
+
+            const geometry = new THREE.BufferGeometry().setFromPoints([worldStart, worldEnd]);
             const material = new THREE.LineBasicMaterial({
                 color: 0x00dfff,
                 linewidth: 4,
@@ -2492,8 +2496,10 @@ class TrimBoxManipulator {
                 opacity: 1.0
             });
             const line = new THREE.Line(geometry, material);
-            line.renderOrder = 1000; // 最前面に表示
-            this.trimBox.add(line);
+            line.renderOrder = 10003; // boxHelperよりも前面に表示（boxHelperは10002）
+
+            // シーンに直接追加（trimBoxの子ではなく）
+            this.scene.add(line);
             this.edgeHighlights.push(line);
         });
 
@@ -2503,9 +2509,8 @@ class TrimBoxManipulator {
     // 辺のハイライトをクリア
     clearEdgeHighlights() {
         this.edgeHighlights.forEach(line => {
-            if (line.parent) {
-                line.parent.remove(line);
-            }
+            // シーンから削除
+            this.scene.remove(line);
             line.geometry.dispose();
             line.material.dispose();
         });
