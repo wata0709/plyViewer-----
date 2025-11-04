@@ -241,6 +241,15 @@ class PLYViewer {
                 toggleOutsideViewNew.checked = this.realtimePreview.showOutside;
             });
         }
+
+        // スライスモード中の天球トグル
+        const toggleSkyboxSlice = document.getElementById('toggleSkyboxSlice');
+        if (toggleSkyboxSlice) {
+            toggleSkyboxSlice.addEventListener('change', (e) => {
+                this.toggleSkyboxInSliceMode(e.target.checked);
+            });
+        }
+
         if (completeSliceBtn) {
             completeSliceBtn.addEventListener('click', () => this.executeTrim());
         }
@@ -933,6 +942,12 @@ class PLYViewer {
                 this.skyboxSphere.visible = false;
             }
             this.scene.background = new THREE.Color(0x0F0F0F);
+
+            // スライスモード用の天球トグルを初期状態（OFF）に設定
+            const toggleSkyboxSlice = document.getElementById('toggleSkyboxSlice');
+            if (toggleSkyboxSlice) {
+                toggleSkyboxSlice.checked = false;
+            }
         } else {
             // スライスモードOFF: 天球の表示状態を元に戻す
             if (this.skyboxSphere) {
@@ -2022,6 +2037,35 @@ class PLYViewer {
         }
         
         console.log('天球表示状態:', this.skyboxVisible);
+    }
+
+    // スライスモード中の天球表示/非表示を切り替え
+    toggleSkyboxInSliceMode(checked) {
+        // スライスモード中でない場合は何もしない
+        if (!this.trimBoxVisible) {
+            console.warn('スライスモード中ではありません');
+            return;
+        }
+
+        // 天球の表示状態を切り替え
+        if (this.skyboxSphere) {
+            this.skyboxSphere.visible = checked;
+        }
+
+        // 背景色も切り替え
+        if (checked) {
+            this.scene.background = null; // 天球表示時は背景色を無効
+        } else {
+            this.scene.background = new THREE.Color(0x0F0F0F); // スライスモード用の暗い背景色
+        }
+
+        // チェックボックスの状態を更新
+        const toggleCheckbox = document.getElementById('toggleSkyboxSlice');
+        if (toggleCheckbox) {
+            toggleCheckbox.checked = checked;
+        }
+
+        console.log('スライスモード中の天球表示状態:', checked);
     }
 
     setupOrientationEventListeners() {
