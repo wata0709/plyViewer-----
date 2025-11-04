@@ -66,9 +66,9 @@ class TrimBoxManipulator {
         // 回転ハンドル関連
         this.rotaryHandleEnableModel = null;    // デフォルト状態の回転ハンドルOBJモデル
         this.rotaryHandleActiveModel = null;   // アクティブ状態の回転ハンドルOBJモデル
-        this.rotaryHandleScale = 0.22;        // 回転ハンドルのスケール（デフォルト220%）
+        this.rotaryHandleScale = 0.05;        // 回転ハンドルのスケール（デフォルト220%）
         this.rotaryHandleLoaded = false;       // 回転ハンドルが読み込まれたかどうか
-        this.activeHandlePositionOffset = new THREE.Vector3(0.050, -0.050, 0.000); // アクティブハンドルの位置オフセット
+        this.activeHandlePositionOffset = new THREE.Vector3(0.070, -0.070, 0.000); // アクティブハンドルの位置オフセット
         this.rotaryHandleHitboxRadius = 0.15;  // 回転ハンドルの当たり判定用球体の半径（見た目を変えずにクリック範囲を広げる）
         
         // Z軸矢印の回転設定
@@ -329,7 +329,7 @@ class TrimBoxManipulator {
         ];
         
         // 面ハンドル（6つの面、初期は非表示）- 箱の外側に少し出して配置
-        const offset = this.arrowOffset; // 箱から離す距離（動的設定）
+        const offset = this.getArrowPlacementOffset(); // 箱から離す距離（動的設定、矢印の基準オフセットを補正）
         const facePositions = [
             { pos: new THREE.Vector3(max.x + offset, center.y, center.z), type: 'face', axis: 'x', direction: 1 },
             { pos: new THREE.Vector3(min.x - offset, center.y, center.z), type: 'face', axis: 'x', direction: -1 },
@@ -1940,7 +1940,7 @@ class TrimBoxManipulator {
         this.faceHandles.forEach(handle => {
             const userData = handle.userData;
             let localPos = new THREE.Vector3();
-            const offset = this.arrowOffset; // 箱から離す距離（クラスプロパティを使用）
+            const offset = this.getArrowPlacementOffset(); // 箱から離す距離（基準オフセット補正済み）
             
             switch (userData.axis) {
                 case 'x':
@@ -2776,6 +2776,13 @@ class TrimBoxManipulator {
         this.updateArrowSizes(); // 矢印を再作成
         console.log('カスタム矢印スケール設定:', this.customArrowScale);
     }
+
+    getArrowPlacementOffset() {
+        const pivotCompensation = (this.customArrowBoundingBox && this.customArrowLoaded)
+            ? this.customArrowPivotOffset * this.customArrowScale
+            : 0;
+        return this.arrowOffset - pivotCompensation;
+    }
     
     setZArrowRotationEnabled(enabled) {
         this.zArrowRotationEnabled = enabled;
@@ -2817,7 +2824,7 @@ class TrimBoxManipulator {
             const center = box.getCenter(new THREE.Vector3());
 
             // 面ハンドル（6つの面）- 箱の外側に少し出して配置
-            const offset = this.arrowOffset; // 箱から離す距離（動的設定）
+            const offset = this.getArrowPlacementOffset(); // 箱から離す距離（動的設定、矢印の基準オフセットを補正）
             const facePositions = [
                 { pos: new THREE.Vector3(max.x + offset, center.y, center.z), type: 'face', axis: 'x', direction: 1 },
                 { pos: new THREE.Vector3(min.x - offset, center.y, center.z), type: 'face', axis: 'x', direction: -1 },
@@ -2851,10 +2858,10 @@ class TrimBoxManipulator {
 
             console.log('円錐サイズ更新完了:', {
                 arrowOffset: this.arrowOffset,
+                placementOffset: offset,
                 coneRadius: this.coneRadius,
                 coneHeight: this.coneHeight,
-                faceHandleCount: this.faceHandles.length,
-                shouldBeVisible: shouldBeVisible
+                faceHandleCount: this.faceHandles.length
             });
         }
     }

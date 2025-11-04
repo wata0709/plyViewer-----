@@ -31,6 +31,9 @@ class PLYViewer {
         this.modelRotation = new THREE.Euler();
         this.originalModelRotation = new THREE.Euler();
         
+        // モデル位置オフセット
+        this.modelPositionOffset = new THREE.Vector3(0, 0, 0); // モデルの位置オフセット（Y軸方向に上げる場合はy値を変更）
+        
         // タブ管理機能
         this.tabManager = null;
         this.tabData = new Map(); // タブごとのデータを保存
@@ -498,8 +501,13 @@ class PLYViewer {
                 this.currentModel.rotation.copy(this.modelRotation);
             }
             
+            // モデルの位置を設定（オフセットを適用）
+            this.currentModel.position.copy(this.modelPositionOffset);
+            
             this.scene.add(this.currentModel);
             this.originalModel = this.currentModel.clone();
+            // originalModelにも位置を設定
+            this.originalModel.position.copy(this.modelPositionOffset);
             this.realtimePreview.setOriginalModel(this.currentModel);
             
             // グリッドを更新
@@ -920,6 +928,9 @@ class PLYViewer {
         // 向きを復元
         this.currentModel.rotation.copy(currentRotation);
         
+        // モデルの位置を設定（オフセットを適用）
+        this.currentModel.position.copy(this.modelPositionOffset);
+        
         this.scene.add(this.currentModel);
         this.realtimePreview.setOriginalModel(this.currentModel);
         
@@ -1158,7 +1169,7 @@ class PLYViewer {
         // 境界点群を白く表示（スライス中の断面表示を継続）
         this.createBoundaryDisplay(savedTrimBoxInfo, currentRotation);
 
-        
+
         // 新しいUI要素の状態を更新
         const operationFrame = document.getElementById('operationFrame');
         if (operationFrame) {
@@ -1171,6 +1182,8 @@ class PLYViewer {
         const optionPanel = document.getElementById('optionPanel');
         if (optionPanel) {
             optionPanel.classList.remove('active');
+            optionPanel.classList.remove('closed');
+            optionPanel.style.display = 'none'; // スライス実行後は完全に非表示
         }
         const sliceButton = document.getElementById('sliceButton');
         if (sliceButton) {
@@ -1320,6 +1333,27 @@ class PLYViewer {
         // モデル全体を表示する初期状態に戻す
         this.resetModel();
         
+        // 天球のテクスチャを復元して天球画像を表示
+        if (this.skyboxSphere && this.skyboxSphere.material) {
+            // 天球のテクスチャを復元
+            if (this.skyboxTexture) {
+                this.skyboxSphere.material.map = this.skyboxTexture;
+                this.skyboxSphere.material.color.setHex(0xffffff); // 色を白に戻す
+                this.skyboxSphere.material.needsUpdate = true;
+            }
+            this.skyboxSphere.visible = true;
+            this.skyboxVisible = true;
+        }
+        if (this.skyboxVisible) {
+            this.scene.background = null; // 天球表示時は背景色を無効
+        }
+        
+        // 天球のチェックボックスの状態を更新
+        const toggleCheckbox = document.getElementById('toggleSkybox');
+        if (toggleCheckbox) {
+            toggleCheckbox.checked = this.skyboxVisible;
+        }
+        
         // スライス完了時のUIを非表示
         const sliceViewMode = document.getElementById('sliceViewMode');
         if (sliceViewMode) {
@@ -1467,8 +1501,14 @@ class PLYViewer {
             this.boundaryDisplayModel = null;
         }
 
-        // 天球と背景色を元に戻す
-        if (this.skyboxSphere) {
+        // 天球と背景色を元に戻す（テクスチャも復元）
+        if (this.skyboxSphere && this.skyboxSphere.material) {
+            // 天球のテクスチャを復元
+            if (this.skyboxTexture) {
+                this.skyboxSphere.material.map = this.skyboxTexture;
+                this.skyboxSphere.material.color.setHex(0xffffff); // 色を白に戻す
+                this.skyboxSphere.material.needsUpdate = true;
+            }
             this.skyboxSphere.visible = this.skyboxVisible;
         }
         if (this.skyboxVisible) {
@@ -1489,6 +1529,8 @@ class PLYViewer {
         const optionPanel = document.getElementById('optionPanel');
         if (optionPanel) {
             optionPanel.classList.remove('active');
+            optionPanel.classList.remove('closed');
+            optionPanel.style.display = 'none'; // リセット時は完全に非表示
         }
         const sliceButton = document.getElementById('sliceButton');
         if (sliceButton) {
