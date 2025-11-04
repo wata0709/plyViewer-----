@@ -778,8 +778,8 @@ class PLYViewer {
         // 遠近感を持たせるためのグリッド作成
         const vertices = [];
         const colors = [];
-        const gridColor = new THREE.Color(0x2B3140); // シアン色
-        const gridAlpha = 0.3; // 透明度
+        const gridColor = new THREE.Color(0x232A3E); // シアン色
+        const gridAlpha = 0.4; // 透明度
         
         // グリッドの分割数
         const divisions = Math.floor(gridSize / gridSpacing);
@@ -1339,7 +1339,17 @@ class PLYViewer {
         this.trimBoxManipulator.clear();
         this.realtimePreview.clearPreview(this.scene);
         this.trimBoxVisible = false;
-        
+
+        // 天球と背景色を元に戻す
+        if (this.skyboxSphere) {
+            this.skyboxSphere.visible = this.skyboxVisible;
+        }
+        if (this.skyboxVisible) {
+            this.scene.background = null; // 天球表示時は背景色を無効
+        } else {
+            this.scene.background = this.defaultBackgroundColor; // デフォルト背景色
+        }
+
         // 新しいUI要素の状態をリセット
         const operationFrame = document.getElementById('operationFrame');
         if (operationFrame) {
