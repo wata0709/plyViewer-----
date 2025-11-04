@@ -2370,6 +2370,49 @@ class TrimBoxManipulator {
         console.log('面ハイライト表示:', { axis, direction });
     }
 
+    // 面のハイライトを更新（箱のサイズ変更時に呼ばれる）
+    updateFaceHighlight() {
+        if (!this.faceHighlight || !this.activeHandle) return;
+
+        const userData = this.activeHandle.userData;
+        if (userData.type !== 'face') return;
+
+        const axis = userData.axis;
+        const direction = userData.direction;
+
+        // 箱のサイズを取得
+        const boxSize = new THREE.Vector3();
+        this.trimBox.geometry.computeBoundingBox();
+        const bbox = this.trimBox.geometry.boundingBox;
+        boxSize.x = bbox.max.x - bbox.min.x;
+        boxSize.y = bbox.max.y - bbox.min.y;
+        boxSize.z = bbox.max.z - bbox.min.z;
+
+        // ハイライト用の面ジオメトリを作成
+        let geometry, position, rotation;
+        const offset = 0.01; // 箱の面より少し外側に配置
+
+        if (axis === 'x') {
+            geometry = new THREE.PlaneGeometry(boxSize.z, boxSize.y);
+            position = new THREE.Vector3(direction * (boxSize.x / 2 + offset), 0, 0);
+            rotation = new THREE.Euler(0, direction > 0 ? -Math.PI / 2 : Math.PI / 2, 0);
+        } else if (axis === 'y') {
+            geometry = new THREE.PlaneGeometry(boxSize.x, boxSize.z);
+            position = new THREE.Vector3(0, direction * (boxSize.y / 2 + offset), 0);
+            rotation = new THREE.Euler(direction > 0 ? Math.PI / 2 : -Math.PI / 2, 0, 0);
+        } else if (axis === 'z') {
+            geometry = new THREE.PlaneGeometry(boxSize.x, boxSize.y);
+            position = new THREE.Vector3(0, 0, direction * (boxSize.z / 2 + offset));
+            rotation = new THREE.Euler(0, direction > 0 ? 0 : Math.PI, 0);
+        }
+
+        // 既存のジオメトリを破棄して新しいものに置き換え
+        this.faceHighlight.geometry.dispose();
+        this.faceHighlight.geometry = geometry;
+        this.faceHighlight.position.copy(position);
+        this.faceHighlight.rotation.copy(rotation);
+    }
+
     // 面のハイライトをクリア
     clearFaceHighlight() {
         if (this.faceHighlight) {
@@ -2547,8 +2590,11 @@ class TrimBoxManipulator {
         
         // 現在の状態を保存（次回の操作で使用）
         this.currentBoxBounds = new THREE.Box3().setFromObject(this.trimBox);
-        
+
         this.updateHandlePositions();
+
+        // 面ハイライトが表示されている場合は更新
+        this.updateFaceHighlight();
     }
 
     createRotationAxes() {
