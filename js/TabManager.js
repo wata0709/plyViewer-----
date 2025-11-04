@@ -6,6 +6,19 @@ class TabManager {
         this.nextTabId = 1;
         this.tabsList = document.getElementById('tabsList');
         
+        if (!this.tabsList) {
+            console.error('TabManager: tabsList要素が見つかりません');
+            // tabsListが存在しない場合は作成
+            this.tabsList = document.createElement('div');
+            this.tabsList.id = 'tabsList';
+            const header = document.getElementById('header');
+            if (header && header.nextSibling) {
+                header.parentNode.insertBefore(this.tabsList, header.nextSibling);
+            } else {
+                document.body.appendChild(this.tabsList);
+            }
+        }
+        
         this.init();
     }
 
@@ -28,9 +41,12 @@ class TabManager {
 
     async loadDefaultTab() {
         try {
-            const response = await fetch('./Scaniverse 2024-07-21 155128.ply');
+            const defaultPLYPath = 'Scaniverse 2024-07-21 155128.ply';
+            console.log('デフォルトPLYファイルを読み込み中:', defaultPLYPath);
+            
+            const response = await fetch(defaultPLYPath);
             if (!response.ok) {
-                console.warn('デフォルトPLYファイルが見つかりません - 初期状態で待機します');
+                console.warn('デフォルトPLYファイルが見つかりません:', defaultPLYPath, '- 初期状態で待機します');
                 // ボタンを無効のままにする（モデルがない状態）
                 return;
             }
@@ -41,9 +57,10 @@ class TabManager {
                 return;
             }
             
-            const tab = this.createTab('デフォルト', './Scaniverse 2024-07-21 155128.ply', true);
+            // タブを作成（switchToTabは呼ばない）
+            const tab = this.createTabWithoutSwitch('デフォルト', defaultPLYPath, true);
             
-            // PLYファイルを読み込み
+            // PLYファイルを読み込み（この中でswitchToTabDataが呼ばれる）
             await this.plyViewer.loadPLYFromArrayBuffer(arrayBuffer, tab.id);
             
             // モデルが正常に読み込まれたか確認
@@ -140,6 +157,62 @@ class TabManager {
         // 最初のタブまたは指定されたタブをアクティブにする
         if (this.tabs.length === 1 || isDefault) {
             this.switchToTab(tabId);
+        }
+
+        return tab;
+    }
+
+    createTabWithoutSwitch(name, filePath = null, isDefault = false) {
+        const tabId = this.nextTabId++;
+        
+        const tab = {
+            id: tabId,
+            name: name,
+            filePath: filePath,
+            isDefault: isDefault,
+            data: null, // PLYデータを保存
+            element: null
+        };
+
+        const tabElement = document.createElement('button');
+        tabElement.className = `tab ${isDefault ? 'default' : ''}`;
+        tabElement.dataset.tabId = tabId;
+        
+        const titleSpan = document.createElement('span');
+        titleSpan.className = 'tab-title';
+        titleSpan.textContent = name;
+        tabElement.appendChild(titleSpan);
+
+        if (!isDefault) {
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'tab-close';
+            closeBtn.innerHTML = '×';
+            closeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.closeTab(tabId);
+            });
+            tabElement.appendChild(closeBtn);
+        }
+
+        tabElement.addEventListener('click', () => {
+            this.switchToTab(tabId);
+        });
+
+        tab.element = tabElement;
+        this.tabs.push(tab);
+
+        // 追加ボタンの前に挿入
+        const addBtn = this.tabsList.querySelector('.add-tab-btn');
+        this.tabsList.insertBefore(tabElement, addBtn);
+
+        // アクティブタブIDを設定（switchToTabは呼ばない）
+        if (this.tabs.length === 1 || isDefault) {
+            this.activeTabId = tabId;
+            // UIのみ更新（switchToTabDataは呼ばない）
+            this.tabs.forEach(t => {
+                t.element.classList.remove('active');
+            });
+            tab.element.classList.add('active');
         }
 
         return tab;

@@ -1,0 +1,1347 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'LINE Seed JP_OTF', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #121314;
+    color: #ffffff;
+    overflow: hidden;
+    margin: 0;
+    padding: 0;
+}
+
+#container {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Header */
+#header {
+    background: var(--newcolor-surface-base, #121314);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px 8px 28px;
+    position: relative;
+    z-index: 1000;
+}
+
+#logo {
+    height: 26px;
+    width: 275px;
+    position: relative;
+}
+
+#logo img {
+    height: 100%;
+    width: 100%;
+    object-fit: cover;
+    opacity: 0.85;
+}
+
+#headerRightSection {
+    display: flex;
+    gap: 24px;
+    align-items: center;
+}
+
+#comboBox {
+    background: #2c2d30;
+    border-radius: 4px;
+    width: 280px;
+    padding: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+#comboBoxInput {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 8px 6px 6px;
+    border-radius: 4px;
+}
+
+#comboBoxInput .frame1248 {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+#comboBoxInput select {
+    background: transparent;
+    border: none;
+    color: #c0c3cc;
+    font-size: 14px;
+    outline: none;
+    flex: 1;
+}
+
+#searchInput {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 400px;
+    height: 36px;
+}
+
+#searchInput input {
+    width: 100%;
+    background: #2c2d30;
+    border: none;
+    border-radius: 99px;
+    padding: 4px 8px 4px 36px;
+    color: #7a7e85;
+    font-size: 14px;
+    outline: none;
+    height: 100%;
+    box-sizing: border-box;
+}
+
+#searchInput input::placeholder {
+    color: #7a7e85;
+}
+
+#searchInput img {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* Sidebar */
+#sidebar {
+    background: #191a1c;
+    width: 64px;
+    height: calc(100vh - 52px); /* headerの高さを引く */
+    display: flex;
+    flex-direction: column;
+    padding: 20px 12px 32px 12px;
+    gap: 64px;
+    overflow: hidden;
+}
+
+#sideMenu {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    flex: 1;
+}
+
+.addContentsMenu {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.addAssetMenu {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.sidebar-button {
+    width: 100%;
+    padding: 8px;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+}
+
+.sidebar-button:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.sidebar-button img {
+    width: 24px;
+    height: 24px;
+}
+
+.sidebar-divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.1);
+    margin: 24px 0;
+}
+
+#sideMenuFooter {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* Main Content */
+.main-content {
+    display: flex;
+    flex: 1;
+    position: relative;
+}
+
+#viewer {
+    flex: 1;
+    position: relative;
+    height: calc(100vh - 52px); /* headerの高さを引く */
+    min-width: 0;
+    width: 100%;
+}
+
+/* Operation Frame (白枠) */
+#operationFrame {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    border: 4px solid #edeff2;
+    box-sizing: border-box;
+    pointer-events: none;
+    z-index: 10;
+    display: none;
+}
+
+#operationFrame.active {
+    display: block;
+}
+
+/* スライス中ステータス */
+#slicingStatus {
+    position: absolute;
+    top: 4px;
+    left: 48%;
+    transform: translateX(-50%);
+    display: none;
+    align-items: flex-start;
+    gap: 0;
+    z-index: 100;
+}
+
+.slicing-status-corner {
+    width: 8px;
+    height: 8px;
+    flex-shrink: 0;
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+}
+
+.slicing-status-corner img {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.slicing-status-corner-right {
+    transform: rotate(270deg);
+}
+
+#slicingStatusContainer {
+    background: #edeff2;
+    border-radius: 0 0 8px 8px;
+    padding: 0 8px 4px 12px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+#slicingStatusText {
+    color: #212224;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+#completeSliceBtn {
+    background: #212224;
+    color: #edeff2;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 6px;
+    font-size: 12px;
+    font-weight: bold;
+    cursor: pointer;
+    height: 28px;
+    width: 100px;
+}
+
+#cancelSliceBtn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#cancelSliceBtn img {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+/* スライス完了時のステータス */
+#sliceViewMode {
+    position: absolute;
+    top: 12px;
+    left: 48%;
+    transform: translateX(-50%);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+}
+
+#sliceViewModeContainer {
+    background: #edeff2;
+    border-radius: 8px;
+    padding: 4px 8px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: center;
+}
+
+#sliceViewModeText {
+    color: #212224;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+#editSliceBtn {
+    background: #212224;
+    color: #edeff2;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 6px;
+    font-size: 12px;
+    font-weight: bold;
+    cursor: pointer;
+    height: 28px;
+    width: 100px;
+}
+
+#closeSliceViewBtn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#closeSliceViewBtn img {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+/* オプションパネル */
+#optionPanel {
+    position: absolute;
+    top: 24px;
+    left: 24px;
+    width: 280px;
+    background: rgba(18, 19, 20, 0.85);
+    backdrop-filter: blur(10px);
+    border-radius: 8px;
+    padding: 12px;
+    z-index: 100;
+    display: none;
+}
+
+#optionPanel.active {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+#optionPanel.closed {
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 12px;
+}
+
+#optionPanel.closed #optionPanelContent {
+    display: none;
+}
+
+#optionPanelHeader {
+    display: flex;
+    align-items: center;
+    height: 20px;
+    cursor: pointer;
+    user-select: none;
+}
+
+#optionPanelTitle {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    color: #c0c3cc;
+    font-size: 12px;
+    font-family: 'LINE Seed JP_OTF', sans-serif;
+    font-weight: 400;
+    line-height: 20px;
+}
+
+#optionPanelArrow {
+    width: 20px;
+    height: 20px;
+    transition: transform 0.3s ease;
+    flex-shrink: 0;
+}
+
+/* 開いているときは下向き（90度回転） */
+#optionPanel.active #optionPanelArrow {
+    transform: rotate(90deg);
+}
+
+/* 閉じているときは横向き（右向き、回転なし） */
+#optionPanel.closed #optionPanelArrow {
+    transform: rotate(0deg);
+}
+
+#optionPanelContent {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    align-self: stretch;
+}
+
+.option-item {
+    display: flex;
+    padding: 4px 0;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.option-label {
+    color: #a5a8b0;
+    font-size: 12px;
+    font-weight: bold;
+    text-align: left;
+}
+
+.option-divider {
+    height: 1px;
+    width: 100%;
+    background: rgba(255, 255, 255, 0.1);
+    margin: 0;
+}
+
+#fullRangeSliceBtn {
+    background: #edeff2;
+    color: #212224;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    width: 100%;
+}
+
+/* 右下のコントロールUI */
+#controlMenu {
+    position: absolute;
+    bottom: 24px;
+    right: 24px;
+    width: 216px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 100;
+}
+
+#viewControl {
+    background: #2c2d30;
+    border-radius: 99px;
+    padding: 6px;
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    overflow: hidden;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+#viewControlTabs {
+    display: flex;
+    flex: 1;
+    background: #1e1f21;
+    border-radius: 42px;
+    min-height: 0;
+    min-width: 0;
+    position: relative;
+}
+
+#viewControlTabs::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: calc(100% / 3);
+    height: 100%;
+    background: #edeff2;
+    border-radius: 99px;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 0;
+}
+
+#viewControlTabs[data-active-index="0"]::before {
+    transform: translateX(0);
+}
+
+#viewControlTabs[data-active-index="1"]::before {
+    transform: translateX(100%);
+}
+
+#viewControlTabs[data-active-index="2"]::before {
+    transform: translateX(200%);
+}
+
+.view-control-tab {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 4px 24px;
+    border-radius: 99px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    min-height: 0;
+    min-width: 0;
+    box-sizing: border-box;
+    position: relative;
+    z-index: 1;
+}
+
+.view-control-tab img {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    display: block;
+}
+
+/* 非アクティブなタブのアイコン色 */
+.view-control-tab:not(.active) img {
+    opacity: 1;
+}
+
+/* アクティブなタブのアイコン色 */
+.view-control-tab.active img {
+    opacity: 1;
+}
+
+#bottomMenu {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+}
+
+#sliceButton {
+    height: 60px;
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+#sliceButton button {
+    background: #1e1f21;
+    border: none;
+    border-radius: 99px;
+    padding: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, opacity 0.2s;
+}
+
+#sliceButton button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+#sliceButton.active button {
+    background: #edeff2;
+    cursor: not-allowed;
+}
+
+#sliceButton.active button:disabled {
+    opacity: 1;
+    cursor: not-allowed;
+}
+
+#sliceButton img {
+    width: 28px;
+    height: 28px;
+}
+
+#modeSwitch {
+    background: #1e1f21;
+    border-radius: 12px;
+    display: flex;
+    width: 164px;
+    overflow: hidden;
+    position: relative;
+}
+
+.mode-button-wrapper {
+    flex: 1;
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    min-height: 0;
+    min-width: 0;
+    box-sizing: border-box;
+    position: relative;
+}
+
+#modeSwitch::before {
+    content: '';
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    width: calc(50% - 8px);
+    height: calc(100% - 16px);
+    background: #edeff2;
+    border-radius: 4px;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 0;
+}
+
+#modeSwitch[data-active-index="0"]::before {
+    transform: translateX(0);
+}
+
+#modeSwitch[data-active-index="1"]::before {
+    transform: translateX(100%);
+}
+
+.mode-button {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    min-height: 0;
+    min-width: 0;
+    box-sizing: border-box;
+    position: relative;
+    z-index: 1;
+}
+
+.mode-button img {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    display: block;
+}
+
+/* 左側のメニュー */
+#leftMenu {
+    position: absolute;
+    right: 24px;
+    top: 24px;
+    bottom: 24px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: flex-end;
+    z-index: 100;
+}
+
+#miniMapButton {
+    background: #1e1f21;
+    border: 1px solid rgba(250, 250, 250, 0.16);
+    border-radius: 4px;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+#miniMapButton img {
+    width: 20px;
+    height: 20px;
+}
+
+.control-group {
+    margin-bottom: 20px;
+}
+
+.control-group h3 {
+    margin-bottom: 10px;
+    color: #ccc;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.btn {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 10px;
+    background: #007acc;
+    border: none;
+    border-radius: 4px;
+    color: white;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s;
+}
+
+.btn:hover {
+    background: #005a99;
+}
+
+.btn:disabled {
+    background: #555;
+    cursor: not-allowed;
+}
+
+.btn-secondary {
+    background: #666;
+}
+
+.btn-secondary:hover {
+    background: #777;
+}
+
+.btn-danger {
+    background: #dc3545;
+}
+
+.btn-danger:hover {
+    background: #c82333;
+}
+
+/* トグルスイッチコンテナ */
+.toggle-container {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    margin-bottom: 10px;
+    width: 100%;
+}
+
+.toggle-label {
+    color: #fff;
+    font-size: 16px;
+    font-weight: normal;
+    margin: 0;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* トグルスイッチ */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 64px;
+    height: 28px;
+    flex-shrink: 0;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #666;
+    transition: 0.3s;
+    border-radius: 28px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 20px;
+    width: 20px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: 0.3s;
+    border-radius: 50%;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+    background-color: #edeff2;
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+    background-color: #92919c;
+    transform: translateX(36px);
+}
+
+.toggle-switch input:focus + .toggle-slider {
+    box-shadow: 0 0 1px #007acc;
+}
+
+#fileInput {
+    display: none;
+}
+
+.info-item {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 12px;
+}
+
+.info-label {
+    color: #aaa;
+}
+
+.info-value {
+    color: #fff;
+    font-weight: bold;
+}
+
+.slider-container {
+    margin-bottom: 15px;
+}
+
+.slider-label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 12px;
+    color: #ccc;
+}
+
+.slider {
+    width: 100%;
+    height: 4px;
+    border-radius: 2px;
+    background: #444;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.slider::-webkit-slider-thumb {
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #007acc;
+    cursor: pointer;
+}
+
+.slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #007acc;
+    cursor: pointer;
+    border: none;
+}
+
+.slider-value {
+    float: right;
+    font-size: 11px;
+    color: #aaa;
+}
+
+.drop-zone {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 300px;
+    height: 200px;
+    border: 2px dashed #666;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #aaa;
+    font-size: 16px;
+    transition: all 0.3s;
+}
+
+.drop-zone.dragover {
+    border-color: #007acc;
+    background: rgba(0, 122, 204, 0.1);
+    color: #007acc;
+}
+
+.drop-zone.hidden {
+    display: none;
+}
+
+#loadingIndicator {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 20px;
+    border-radius: 8px;
+    display: none;
+}
+
+#orientationModal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.7);
+    display: none;
+    z-index: 10000;
+    pointer-events: none;
+}
+
+#orientationPanel {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: #2a2a2a;
+    padding: 20px;
+    border-radius: 12px;
+    border: 2px solid #007acc;
+    width: 350px;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+    pointer-events: auto;
+}
+
+#orientationPanel h2 {
+    margin-bottom: 20px;
+    color: #007acc;
+}
+
+#orientationPanel p {
+    margin-bottom: 20px;
+    color: #ccc;
+    line-height: 1.5;
+}
+
+.orientation-controls {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.orientation-btn {
+    padding: 15px;
+    background: #444;
+    border: none;
+    border-radius: 8px;
+    color: white;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 14px;
+}
+
+.orientation-btn:hover {
+    background: #555;
+    transform: translateY(-2px);
+}
+
+.orientation-btn.active {
+    background: #007acc;
+}
+
+.preset-controls {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 20px;
+}
+
+.preset-btn {
+    padding: 10px 20px;
+    background: #666;
+    border: none;
+    border-radius: 6px;
+    color: white;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.preset-btn:hover {
+    background: #777;
+}
+
+/* 全範囲スライス確認モーダル */
+#fullRangeSliceModal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#fullRangeSliceModalOverlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(57, 57, 57, 0.7); /* #393939の70%透明度 */
+    backdrop-filter: blur(2px);
+}
+
+#fullRangeSliceModalContent {
+    position: relative;
+    background: #1e1f21;
+    border-radius: 8px;
+    padding: 24px;
+    width: 100%;
+    max-width: 560px;
+    box-shadow: 0px 4px 50px 0px rgba(33, 33, 33, 0.08), 0px 4px 6px 0px rgba(33, 33, 33, 0.04);
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+    z-index: 10001;
+}
+
+#fullRangeSliceModalHeader {
+    display: flex;
+    gap: 6px;
+    align-items: flex-start;
+    justify-content: flex-end;
+    width: 100%;
+}
+
+#fullRangeSliceModalTitle {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+#fullRangeSliceModalTitleText {
+    font-family: 'LINE Seed JP_OTF', sans-serif;
+    font-weight: 700;
+    font-size: 20px;
+    line-height: 32px;
+    color: #DCDFE5;
+    margin: 0;
+}
+
+#fullRangeSliceModalDescription {
+    font-family: 'LINE Seed JP_OTF', sans-serif;
+    font-weight: 400;
+    font-size: 14px;
+    line-height: 24px;
+    color: #c0c3cc;
+    margin: 0;
+}
+
+#fullRangeSliceModalCloseBtn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    flex-shrink: 0;
+    transition: background 0.2s;
+}
+
+#fullRangeSliceModalCloseBtn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+#fullRangeSliceModalCloseBtn img {
+    width: 20px;
+    height: 20px;
+    display: block;
+}
+
+#fullRangeSliceModalButtons {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: flex-end;
+    width: 100%;
+}
+
+#fullRangeSliceModalCancelBtn {
+    flex: 1;
+    border: 1px solid rgba(250, 250, 250, 0.16);
+    border-radius: 6px;
+    padding: 8px 12px;
+    background: transparent;
+    color: #edeff2;
+    font-family: 'LINE Seed JP_OTF', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    line-height: 28px;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+    text-align: center;
+}
+
+#fullRangeSliceModalCancelBtn:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(250, 250, 250, 0.24);
+}
+
+#fullRangeSliceModalConfirmBtn {
+    flex: 1;
+    background: #edeff2;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 12px;
+    color: #212224;
+    font-family: 'LINE Seed JP_OTF', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    line-height: 28px;
+    cursor: pointer;
+    transition: background 0.2s;
+    text-align: center;
+}
+
+#fullRangeSliceModalConfirmBtn:hover {
+    background: #ffffff;
+}
+
+/* スライス解除確認モーダル */
+#removeSliceModal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#removeSliceModalOverlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(57, 57, 57, 0.7); /* #393939の70%透明度 */
+    backdrop-filter: blur(2px);
+}
+
+#removeSliceModalContent {
+    position: relative;
+    background: #1e1f21;
+    border-radius: 8px;
+    padding: 24px;
+    width: 100%;
+    max-width: 560px;
+    box-shadow: 0px 4px 50px 0px rgba(33, 33, 33, 0.08), 0px 4px 6px 0px rgba(33, 33, 33, 0.04);
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+    z-index: 10001;
+}
+
+#removeSliceModalHeader {
+    display: flex;
+    gap: 6px;
+    align-items: flex-start;
+    justify-content: flex-end;
+    width: 100%;
+}
+
+#removeSliceModalTitle {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+#removeSliceModalTitleText {
+    font-family: 'LINE Seed JP_OTF', sans-serif;
+    font-weight: 700;
+    font-size: 20px;
+    line-height: 32px;
+    color: #DCDFE5;
+    margin: 0;
+}
+
+#removeSliceModalDescription {
+    font-family: 'LINE Seed JP_OTF', sans-serif;
+    font-weight: 400;
+    font-size: 14px;
+    line-height: 24px;
+    color: #c0c3cc;
+}
+
+#removeSliceModalDescription p {
+    margin: 0;
+}
+
+#removeSliceModalCloseBtn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    flex-shrink: 0;
+    transition: background 0.2s;
+}
+
+#removeSliceModalCloseBtn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+#removeSliceModalCloseBtn img {
+    width: 20px;
+    height: 20px;
+    display: block;
+}
+
+#removeSliceModalButtons {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: flex-end;
+    width: 100%;
+}
+
+#removeSliceModalCancelBtn {
+    flex: 1;
+    border: 1px solid rgba(250, 250, 250, 0.16);
+    border-radius: 6px;
+    padding: 8px 12px;
+    background: transparent;
+    color: #edeff2;
+    font-family: 'LINE Seed JP_OTF', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    line-height: 28px;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+    text-align: center;
+}
+
+#removeSliceModalCancelBtn:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(250, 250, 250, 0.24);
+}
+
+#removeSliceModalConfirmBtn {
+    flex: 1;
+    background: #d62439;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 12px;
+    color: #ffffff;
+    font-family: 'LINE Seed JP_OTF', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    line-height: 28px;
+    cursor: pointer;
+    transition: background 0.2s;
+    text-align: center;
+}
+
+#removeSliceModalConfirmBtn:hover {
+    background: #b91e2f;
+}
+
+/* トリミング操作中の表示 */
+.trimming-active {
+    cursor: grabbing !important;
+}
+
+.trimming-info {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: #ffffff;
+    padding: 10px 15px;
+    border-radius: 6px;
+    font-size: 14px;
+    display: none;
+    z-index: 1000;
+}
+
+
+/* モバイル対応 */
+@media (max-width: 768px) {
+    #orientationPanel {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        width: auto;
+        max-height: 80vh;
+        overflow-y: auto;
+    }
+
+    .orientation-controls {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+
+    .preset-controls {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .preset-btn {
+        padding: 8px 12px;
+        font-size: 12px;
+    }
+
+    .orientation-btn {
+        padding: 12px;
+        font-size: 12px;
+    }
+}
+

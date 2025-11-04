@@ -174,7 +174,13 @@ class TrimBoxManipulator {
         });
     }
 
-    create(boundingBox) {
+    create(boundingBox, useFullRange = false) {
+        // 全範囲スライスの場合、既存の箱の高さを保存
+        let existingBoxHeight = null;
+        if (useFullRange && this.trimBox && this.trimBox.geometry) {
+            existingBoxHeight = this.trimBox.geometry.parameters.height;
+        }
+        
         this.clear();
         
         // アクティブなハンドル状態をリセット
@@ -185,29 +191,52 @@ class TrimBoxManipulator {
         
         // モデルの中心を取得（サイズ計算用）
         const modelCenter = boundingBox.getCenter(new THREE.Vector3());
+        const modelSize = boundingBox.getSize(new THREE.Vector3());
         
-        // 箱を配置する位置を決定（カメラターゲット位置より手前）
-        const cameraDirection = new THREE.Vector3();
-        this.camera.getWorldDirection(cameraDirection);
+        let boxCenter;
+        let boxWidth, boxHeight, boxDepth;
         
-        // カメラからターゲットまでの距離の70%の位置に配置（手前に）
-        const targetDistance = this.camera.position.distanceTo(this.controls.target);
-        const boxDistance = targetDistance * 0.7;
-        const boxCenter = this.camera.position.clone().add(cameraDirection.multiplyScalar(boxDistance));
+        if (useFullRange) {
+            // 全範囲スライスの場合：バウンディングボックスのサイズと位置を使用
+            boxCenter = modelCenter.clone();
+            
+            // X方向とZ方向はモデル全体を囲むように広げる（5%のマージン）
+            boxWidth = modelSize.x * 1.05;
+            boxDepth = modelSize.z * 1.05;
+            
+            // Y方向（高さ）は既存の箱があればそれを保持、なければモデルのY方向のサイズを使用
+            if (existingBoxHeight !== null) {
+                // 既存の箱のY方向のサイズを保持
+                boxHeight = existingBoxHeight;
+            } else {
+                // 既存の箱がない場合はモデルのY方向のサイズを使用
+                boxHeight = modelSize.y * 1.05;
+            }
+        } else {
+            // 通常のスライスモード：画面サイズに基づいて箱サイズを計算
+            // 箱を配置する位置を決定（カメラターゲット位置より手前）
+            const cameraDirection = new THREE.Vector3();
+            this.camera.getWorldDirection(cameraDirection);
+            
+            // カメラからターゲットまでの距離の70%の位置に配置（手前に）
+            const targetDistance = this.camera.position.distanceTo(this.controls.target);
+            const boxDistance = targetDistance * 0.7;
+            boxCenter = this.camera.position.clone().add(cameraDirection.multiplyScalar(boxDistance));
+            
+            // Y座標はモデルのY座標中央を使用
+            boxCenter.y = modelCenter.y;
+            
+            // 初期表示時のみ画面サイズに基づいて箱サイズを計算
+            // カメラからターゲット位置までの距離を使用
+            const cameraDistance = this.camera.position.distanceTo(boxCenter);
+            const fov = this.camera.fov * (Math.PI / 180);
+            
+            // 画面の30%程度のサイズになるように計算（立方体）
+            const viewportHeight = 2 * Math.tan(fov / 2) * cameraDistance;
+            boxWidth = boxHeight = boxDepth = viewportHeight * 0.3;
+        }
         
-        // Y座標はモデルのY座標中央を使用
-        boxCenter.y = modelCenter.y;
-        
-        // 初期表示時のみ画面サイズに基づいて箱サイズを計算
-        // カメラからターゲット位置までの距離を使用
-        const cameraDistance = this.camera.position.distanceTo(boxCenter);
-        const fov = this.camera.fov * (Math.PI / 180);
-        
-        // 画面の30%程度のサイズになるように計算
-        const viewportHeight = 2 * Math.tan(fov / 2) * cameraDistance;
-        const boxSize = viewportHeight * 0.3;
-        
-        const geometry = new THREE.BoxGeometry(boxSize, boxSize, boxSize);
+        const geometry = new THREE.BoxGeometry(boxWidth, boxHeight, boxDepth);
         const material = new THREE.MeshBasicMaterial({
             color: this.boxColor,
             transparent: true,
@@ -235,12 +264,20 @@ class TrimBoxManipulator {
 
         
         // 初期の3D空間でのサイズと位置を保存
-        this.fixedBoxSize = boxSize;
+        // 直方体の場合は最大のサイズを使用（後方互換性のため）
+        this.fixedBoxSize = useFullRange ? Math.max(boxWidth, boxHeight, boxDepth) : boxWidth;
         this.targetPosition = boxCenter.clone();
         this.currentScale = 1.0;
         
         this.createHandles();
-        console.log('新しいマニピュレーターを作成:', { fixedBoxSize: this.fixedBoxSize, position: this.targetPosition });
+        console.log('新しいマニピュレーターを作成:', { 
+            fixedBoxSize: this.fixedBoxSize, 
+            position: this.targetPosition,
+            width: boxWidth,
+            height: boxHeight,
+            depth: boxDepth,
+            useFullRange: useFullRange
+        });
     }
 
     createHandles() {
