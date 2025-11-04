@@ -371,11 +371,12 @@ class TrimBoxManipulator {
             // スケールを適用
             customArrow.scale.set(this.customArrowScale, this.customArrowScale, this.customArrowScale);
             
-            // すべての子オブジェクトのマテリアルを白色に設定
+            // すべての子オブジェクトのマテリアルを白色に設定し、renderOrderを設定
             customArrow.traverse((child) => {
                 if (child.isMesh) {
                     child.material = child.material.clone();
                     child.material.color.setHex(0xffffff);
+                    child.renderOrder = 100; // 矢印本体は低い順序
                 }
             });
             
@@ -386,6 +387,8 @@ class TrimBoxManipulator {
             const boundingBox = new THREE.Box3().setFromObject(customArrow);
             const size = boundingBox.getSize(new THREE.Vector3());
             const center = boundingBox.getCenter(new THREE.Vector3());
+            const min = boundingBox.min;
+            const max = boundingBox.max;
             
             const axisLengths = {
                 x: size.x,
@@ -406,29 +409,37 @@ class TrimBoxManipulator {
             
             const fallbackSize = this.customArrowScale * 5;
             const primaryLength = axisLengths[primaryAxis] > 0 ? axisLengths[primaryAxis] : fallbackSize;
-            const lineHeight = primaryLength * 1.02;
-            const lineRadius = Math.max(secondaryMax * 0.1, fallbackSize * 0.05, 0.02);
+            // 線の長さを矢印と同じ程度に設定（箱側に伸びる）
+            const lineHeight = primaryLength * 1.0;
+            const lineRadius = Math.max(secondaryMax * 0.15, fallbackSize * 0.08, 0.02);
             
             const lineGeometry = new THREE.CylinderGeometry(lineRadius, lineRadius, lineHeight, 12);
             const lineMaterial = new THREE.MeshBasicMaterial({ 
                 color: 0xffffff,
                 side: THREE.DoubleSide,
-                depthTest: false,
-                depthWrite: false
+                depthTest: false,        // 深度テストを無効にして常に最前面に表示
+                depthWrite: false,       // 深度バッファに書き込まない
+                transparent: true,       // 透明度を有効にする
+                opacity: 1.0             // 完全に不透明
             });
             const line = new THREE.Mesh(lineGeometry, lineMaterial);
-            line.position.copy(center);
-            line.renderOrder = 1000;
+            line.renderOrder = 10000; // 非常に高い順序で常に最前面に表示
             
+            // 線を矢印の根元から箱側（外側）に向かって配置
             switch (primaryAxis) {
                 case 'x':
                     line.rotation.z = Math.PI / 2;
+                    // 線をX軸の負の方向（箱側）に配置：矢印の根元の外側に伸ばす
+                    line.position.set(min.x - lineHeight * 0.5, center.y, center.z);
                     break;
                 case 'z':
                     line.rotation.x = Math.PI / 2;
+                    // 線をZ軸の負の方向（箱側）に配置：矢印の根元の外側に伸ばす
+                    line.position.set(center.x, center.y, min.z - lineHeight * 0.5);
                     break;
                 default:
-                    // y軸の場合は回転不要
+                    // y軸の場合：線をY軸の負の方向（箱側）に配置：矢印の根元の外側に伸ばす
+                    line.position.set(center.x, min.y - lineHeight * 0.5, center.z);
                     break;
             }
             
@@ -467,29 +478,35 @@ class TrimBoxManipulator {
         const tipMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
         const tip = new THREE.Mesh(tipGeometry, tipMaterial);
         
-        // 位置調整：円柱と円錐が適切に接続するように配置
-        shaft.position.y = 0; // 円柱の中心を原点に配置
-        tip.position.y = shaftHeight * 0.5 + tipHeight * 0.5;   // 円錐を円柱の上端に配置
+        // 矢印全体の高さを計算
+        const totalHeight = shaftHeight + tipHeight;
         
-        // 矢印の中心軸に沿った線を追加（細い円柱として描画して確実に表示）
-        // 線は円柱部分だけに沿って表示し、円錐には重ならないようにする
-        const lineRadius = Math.max(shaftRadius * 1.3, 0.02); // 線の半径は円柱の130%、最小0.02
-        const lineHeight = shaftHeight * 1.05; // 円柱部分より少し長くする（上端が円錐の底面に少し入る程度）
+        // 位置調整：矢印全体の中心が原点になるように配置
+        const centerOffset = -totalHeight * 0.5;
+        shaft.position.y = centerOffset + shaftHeight * 0.5; // 円柱を配置
+        tip.position.y = centerOffset + shaftHeight + tipHeight * 0.5;   // 円錐を円柱の上端に配置
+        
+        // 矢印の中心軸に沿った線を追加（細い円柱として描画）
+        // 線は円柱の下半分（箱側）のみに配置し、円錐とはかぶらないようにする
+        const lineRadius = Math.max(shaftRadius * 1.2, 0.015); // 線の半径は円柱の120%、最小0.015（円柱よりやや太く）
+        const lineHeight = shaftHeight * 0.5; // 線の長さは円柱の50%（下半分のみ）
         const lineGeometry = new THREE.CylinderGeometry(lineRadius, lineRadius, lineHeight, 8);
         const lineMaterial = new THREE.MeshBasicMaterial({
             color: 0xffffff,
             side: THREE.DoubleSide,  // 両面を描画
             depthTest: false,        // 深度テストを無効にして常に最前面に表示
             depthWrite: false,       // 深度バッファに書き込まない
-            transparent: false       // 透明度は使用しない
+            transparent: true,       // 透明度を有効にする
+            opacity: 1.0             // 完全に不透明
         });
         const line = new THREE.Mesh(lineGeometry, lineMaterial);
-        line.position.y = 0; // 円柱と同じ位置に配置
+        // 線を円柱の下半分に配置（箱側に近づける）
+        line.position.y = centerOffset + lineHeight * 0.5; // 矢印の底部から線の長さの半分の位置
         
         // レンダリング順序を設定（同じグループ内では追加順序が重要）
-        shaft.renderOrder = 1;
-        tip.renderOrder = 2;
-        line.renderOrder = 1000; // 線を最前面に表示
+        shaft.renderOrder = 100;    // 円柱は低い順序
+        tip.renderOrder = 100;      // 円錐も低い順序
+        line.renderOrder = 10000;   // 線を非常に高い順序で最前面に表示
         
         // 追加順序を変更：線を最後に追加して前面に表示
         arrowGroup.add(shaft);
@@ -775,10 +792,10 @@ class TrimBoxManipulator {
                     this.activeHandle.material.color.setHex(0xffff00);
                     console.log('円錐色変更:', this.activeHandle.type);
                 } else if (this.activeHandle.children) {
-                    // Groupの子要素の色を黄色に変更（後方互換性）
+                    // Groupの全ての子要素（ネストされた要素も含む）の色を黄色に変更
                     console.log('面ハンドル色変更:', { childrenCount: this.activeHandle.children.length });
-                    this.activeHandle.children.forEach(child => {
-                        if (child.material) {
+                    this.activeHandle.traverse((child) => {
+                        if (child.isMesh && child.material) {
                             child.material.color.setHex(0xffff00);
                             console.log('子要素の色変更:', child.type);
                         }
@@ -1198,9 +1215,9 @@ class TrimBoxManipulator {
                 if (handle.material) {
                     handle.material.color.setHex(hoverColor);
                 } else {
-                    // Groupの子要素の色を薄い黄色に変更（後方互換性）
-                    handle.children.forEach(child => {
-                        if (child.material) {
+                    // Groupの全ての子要素（ネストされた要素も含む）の色を薄い黄色に変更
+                    handle.traverse((child) => {
+                        if (child.isMesh && child.material) {
                             child.material.color.setHex(hoverColor);
                         }
                     });
@@ -1248,9 +1265,9 @@ class TrimBoxManipulator {
                 if (handle.material) {
                     handle.material.color.setHex(normalColor);
                 } else {
-                    // Groupの子要素の色を白色に戻す（後方互換性）
-                    handle.children.forEach(child => {
-                        if (child.material) {
+                    // Groupの全ての子要素（ネストされた要素も含む）の色を白色に戻す
+                    handle.traverse((child) => {
+                        if (child.isMesh && child.material) {
                             child.material.color.setHex(normalColor);
                         }
                     });
