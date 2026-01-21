@@ -297,7 +297,7 @@ class PLYViewer {
         setupAxisHandleRotationListener('y', 'z', 'axisHandleRotationY_Z', 'axisHandleRotationY_Z_Value');
 
         // Z軸矢印の回転
-        setupAxisHandleRotationListener('z', 'x', 'axisHandleRotationZ_X', 'axisHandleRotationZ_Z_Value');
+        setupAxisHandleRotationListener('z', 'x', 'axisHandleRotationZ_X', 'axisHandleRotationZ_X_Value');
         setupAxisHandleRotationListener('z', 'y', 'axisHandleRotationZ_Y', 'axisHandleRotationZ_Y_Value');
         setupAxisHandleRotationListener('z', 'z', 'axisHandleRotationZ_Z', 'axisHandleRotationZ_Z_Value');
 
