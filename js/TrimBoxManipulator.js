@@ -683,7 +683,7 @@ class TrimBoxManipulator {
             const clickableMaterial = new THREE.MeshBasicMaterial({
                 color: axisData.color,
                 transparent: true,
-                opacity: 0.5, // 透明度50%
+                opacity: 0, // 透明度0%（完全に透明だが当たり判定は残る）
                 side: THREE.DoubleSide,
                 depthTest: false,
                 depthWrite: false
