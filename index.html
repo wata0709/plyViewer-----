@@ -1,686 +1,344 @@
 <!DOCTYPE html>
 <html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>sliceFunctionDemo</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #1a1a1a;
-            color: #ffffff;
-            overflow: hidden;
-        }
-
-        #container {
-            position: relative;
-            width: 100vw;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .main-content {
-            display: flex;
-            flex: 1;
-        }
-
-        #viewer {
-            flex: 1;
-            position: relative;
-        }
-
-        #controls {
-            width: 300px;
-            background: #2a2a2a;
-            padding: 20px;
-            border-left: 1px solid #444;
-            overflow-y: auto;
-            height: 100vh;
-            min-height: 0;
-            box-sizing: border-box;
-            scrollbar-width: thin;
-            scrollbar-color: #666 #333;
-        }
-        
-        #controls::-webkit-scrollbar {
-            width: 8px;
-        }
-        
-        #controls::-webkit-scrollbar-track {
-            background: #333;
-            border-radius: 4px;
-        }
-        
-        #controls::-webkit-scrollbar-thumb {
-            background: #666;
-            border-radius: 4px;
-        }
-        
-        #controls::-webkit-scrollbar-thumb:hover {
-            background: #888;
-        }
-
-
-        
-        #controls::after {
-            content: '';
-            display: block;
-            height: 60px;
-        }
-
-        .control-group {
-            margin-bottom: 20px;
-        }
-
-        .control-group h3 {
-            margin-bottom: 10px;
-            color: #ccc;
-            font-size: 14px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .btn {
-            width: 100%;
-            padding: 12px;
-            margin-bottom: 10px;
-            background: #007acc;
-            border: none;
-            border-radius: 4px;
-            color: white;
-            cursor: pointer;
-            font-size: 14px;
-            transition: background 0.2s;
-        }
-
-        .btn:hover {
-            background: #005a99;
-        }
-
-        .btn:disabled {
-            background: #555;
-            cursor: not-allowed;
-        }
-
-        .btn-secondary {
-            background: #666;
-        }
-
-        .btn-secondary:hover {
-            background: #777;
-        }
-
-        .btn-danger {
-            background: #dc3545;
-        }
-
-        .btn-danger:hover {
-            background: #c82333;
-        }
-
-        /* トグルスイッチコンテナ */
-        .toggle-container {
-            display: flex;
-            align-items: center;
-            gap: 24px;
-            margin-bottom: 10px;
-            width: 100%;
-        }
-
-        .toggle-label {
-            color: #fff;
-            font-size: 16px;
-            font-weight: normal;
-            margin: 0;
-            white-space: nowrap;
-            flex-shrink: 0;
-        }
-
-        /* トグルスイッチ */
-        .toggle-switch {
-            position: relative;
-            display: inline-block;
-            width: 64px;
-            height: 28px;
-            flex-shrink: 0;
-        }
-
-        .toggle-switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-
-        .toggle-slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: #666;
-            transition: 0.3s;
-            border-radius: 28px;
-        }
-
-        .toggle-slider:before {
-            position: absolute;
-            content: "";
-            height: 20px;
-            width: 20px;
-            left: 4px;
-            bottom: 4px;
-            background-color: white;
-            transition: 0.3s;
-            border-radius: 50%;
-        }
-
-        .toggle-switch input:checked + .toggle-slider {
-            background-color: #007acc;
-        }
-
-        .toggle-switch input:checked + .toggle-slider:before {
-            transform: translateX(36px);
-        }
-
-        .toggle-switch input:focus + .toggle-slider {
-            box-shadow: 0 0 1px #007acc;
-        }
-
-        #fileInput {
-            display: none;
-        }
-
-        .info-item {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 8px;
-            font-size: 12px;
-        }
-
-        .info-label {
-            color: #aaa;
-        }
-
-        .info-value {
-            color: #fff;
-            font-weight: bold;
-        }
-
-        .slider-container {
-            margin-bottom: 15px;
-        }
-
-        .slider-label {
-            display: block;
-            margin-bottom: 5px;
-            font-size: 12px;
-            color: #ccc;
-        }
-
-        .slider {
-            width: 100%;
-            height: 4px;
-            border-radius: 2px;
-            background: #444;
-            outline: none;
-            -webkit-appearance: none;
-            appearance: none;
-        }
-
-        .slider::-webkit-slider-thumb {
-            appearance: none;
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background: #007acc;
-            cursor: pointer;
-        }
-
-        .slider::-moz-range-thumb {
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background: #007acc;
-            cursor: pointer;
-            border: none;
-        }
-
-        .slider-value {
-            float: right;
-            font-size: 11px;
-            color: #aaa;
-        }
-
-        .drop-zone {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 300px;
-            height: 200px;
-            border: 2px dashed #666;
-            border-radius: 8px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            color: #aaa;
-            font-size: 16px;
-            transition: all 0.3s;
-        }
-
-        .drop-zone.dragover {
-            border-color: #007acc;
-            background: rgba(0, 122, 204, 0.1);
-            color: #007acc;
-        }
-
-        .drop-zone.hidden {
-            display: none;
-        }
-
-        #loadingIndicator {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 20px;
-            border-radius: 8px;
-            display: none;
-        }
-
-        #orientationModal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            background: rgba(0, 0, 0, 0.7);
-            display: none;
-            z-index: 10000;
-            pointer-events: none;
-        }
-
-        #orientationPanel {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background: #2a2a2a;
-            padding: 20px;
-            border-radius: 12px;
-            border: 2px solid #007acc;
-            width: 350px;
-            text-align: center;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
-            pointer-events: auto;
-        }
-
-        #orientationPanel h2 {
-            margin-bottom: 20px;
-            color: #007acc;
-        }
-
-        #orientationPanel p {
-            margin-bottom: 20px;
-            color: #ccc;
-            line-height: 1.5;
-        }
-
-        .orientation-controls {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-
-        .orientation-btn {
-            padding: 15px;
-            background: #444;
-            border: none;
-            border-radius: 8px;
-            color: white;
-            cursor: pointer;
-            transition: all 0.2s;
-            font-size: 14px;
-        }
-
-        .orientation-btn:hover {
-            background: #555;
-            transform: translateY(-2px);
-        }
-
-        .orientation-btn.active {
-            background: #007acc;
-        }
-
-        .preset-controls {
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-            margin-bottom: 20px;
-        }
-
-        .preset-btn {
-            padding: 10px 20px;
-            background: #666;
-            border: none;
-            border-radius: 6px;
-            color: white;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-
-        .preset-btn:hover {
-            background: #777;
-        }
-
-        /* トリミング操作中の表示 */
-        .trimming-active {
-            cursor: grabbing !important;
-        }
-
-        .trimming-info {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.8);
-            color: #00ff00;
-            padding: 10px 15px;
-            border-radius: 6px;
-            font-size: 14px;
-            display: none;
-            z-index: 1000;
-        }
-
-        /* タブスタイル */
-        .tabs-container {
-            background: #1a1a1a;
-            border-bottom: 1px solid #444;
-            z-index: 1000;
-            position: relative;
-        }
-
-        .tabs-list {
-            display: flex;
-            overflow-x: auto;
-            scrollbar-width: none;
-            -ms-overflow-style: none;
-        }
-
-        .tabs-list::-webkit-scrollbar {
-            display: none;
-        }
-
-        .tab {
-            padding: 12px 20px;
-            background: #2a2a2a;
-            color: #aaa;
-            border: none;
-            border-right: 1px solid #444;
-            cursor: pointer;
-            font-size: 14px;
-            white-space: nowrap;
-            min-width: 150px;
-            max-width: 200px;
-            position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            transition: all 0.2s;
-        }
-
-        .tab:hover {
-            background: #3a3a3a;
-            color: #fff;
-        }
-
-        .tab.active {
-            background: #007acc;
-            color: #fff;
-        }
-
-        .tab-title {
-            flex: 1;
-            text-overflow: ellipsis;
-            overflow: hidden;
-        }
-
-        .tab-close {
-            margin-left: 8px;
-            width: 20px;
-            height: 20px;
-            border: none;
-            background: rgba(255, 255, 255, 0.2);
-            color: #fff;
-            border-radius: 50%;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            flex-shrink: 0;
-        }
-
-        .tab-close:hover {
-            background: rgba(255, 255, 255, 0.3);
-        }
-
-        .tab.default .tab-close {
-            display: none;
-        }
-
-        .add-tab-btn {
-            padding: 12px 20px;
-            background: #2a2a2a;
-            color: #aaa;
-            border: none;
-            cursor: pointer;
-            font-size: 18px;
-            transition: all 0.2s;
-            border-right: 1px solid #444;
-        }
-
-        .add-tab-btn:hover {
-            background: #3a3a3a;
-            color: #fff;
-        }
-
-        /* モバイル対応 */
-        @media (max-width: 768px) {
-            #orientationPanel {
-                top: 10px;
-                right: 10px;
-                left: 10px;
-                width: auto;
-                max-height: 80vh;
-                overflow-y: auto;
-            }
-
-            .orientation-controls {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 10px;
-            }
-
-            .preset-controls {
-                flex-wrap: wrap;
-                gap: 8px;
-            }
-
-            .preset-btn {
-                padding: 8px 12px;
-                font-size: 12px;
-            }
-
-            .orientation-btn {
-                padding: 12px;
-                font-size: 12px;
-            }
-        }
-    </style>
-</head>
-<body>
+    <link rel="stylesheet" href="css/styles.css" />
+  </head>
+  <body>
     <div id="container">
-        <!-- タブバー -->
-        <div class="tabs-container">
-            <div class="tabs-list" id="tabsList">
-                <!-- タブはJavaScriptで動的に追加 -->
-            </div>
+      <!-- Header -->
+      <div id="header">
+        <div id="logo">
+          <img src="assets/logo.png" alt="ロゴ" />
         </div>
-        
-        <div class="main-content">
-            <div id="viewer">
-                <div id="dropZone" class="drop-zone">
-                    <div>📁</div>
-                    <div>PLYファイルをドロップ</div>
-                    <div style="font-size: 12px; margin-top: 10px;">またはクリックして選択</div>
-                </div>
-                <div id="loadingIndicator">
-                    <div>読み込み中...</div>
-                </div>
-
-                            <div id="trimmingInfo" class="trimming-info">
-                🎯 トリミング操作中 | 🔴面:移動 🔵辺:回転 🟡頂点:対角基点変形 | Escキーでキャンセル
+        <div id="headerRightSection">
+          <div id="comboBox">
+            <div id="comboBoxInput">
+              <div class="frame1248">
+                <select id="projectSelect">
+                  <option>調合工程/第3プラント2FL</option>
+                </select>
+              </div>
             </div>
-
-                <!-- 向き調整モーダル -->
-                <div id="orientationModal">
-                    <div id="orientationPanel">
-                        <h2>📐 向き調整</h2>
-                        <p>マウスでモデルを回転させて確認しながら、<br>ボタンで最適な向きに調整してください。</p>
-                        
-                        <div class="preset-controls">
-                            <button class="preset-btn" id="presetFront">正面</button>
-                            <button class="preset-btn" id="presetTop">上面</button>
-                            <button class="preset-btn" id="presetSide">側面</button>
-                            <button class="preset-btn" id="presetIso">等角</button>
-                        </div>
-                        
-                        <div class="orientation-controls">
-                            <button class="orientation-btn" id="rotateXPos">X軸+90°</button>
-                            <button class="orientation-btn" id="rotateYPos">Y軸+90°</button>
-                            <button class="orientation-btn" id="rotateZPos">Z軸+90°</button>
-                            <button class="orientation-btn" id="rotateXNeg">X軸-90°</button>
-                            <button class="orientation-btn" id="rotateYNeg">Y軸-90°</button>
-                            <button class="orientation-btn" id="rotateZNeg">Z軸-90°</button>
-                            <button class="orientation-btn" id="flipX">X軸反転</button>
-                            <button class="orientation-btn" id="flipY">Y軸反転</button>
-                            <button class="orientation-btn" id="flipZ">Z軸反転</button>
-                        </div>
-                        
-                        <div style="display: flex; gap: 15px; justify-content: center;">
-                            <button class="btn" id="resetOrientation">リセット</button>
-                            <button class="btn" id="confirmOrientation">この向きで確定</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div id="controls">
-                <div class="control-group">
-                    <h3>ファイル</h3>
-                    <button class="btn" onclick="document.getElementById('fileInput').click()">
-                        PLYファイル選択
-                    </button>
-                    <input type="file" id="fileInput" accept=".ply" />
-                </div>
-
-            <div class="control-group">
-                <h3>表示モード</h3>
-                <button class="btn btn-secondary" id="toggleDisplayMode">
-                    ポイント表示
-                </button>
-                <div class="toggle-container">
-                    <p class="toggle-label">天球</p>
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="toggleSkybox" checked>
-                        <span class="toggle-slider"></span>
-                    </label>
-                </div>
-                <button class="btn btn-secondary" id="resetCamera" disabled>
-                    位置リセット
-                </button>
-            </div>
-
-            <div class="control-group">
-                <h3>トリミング</h3>
-                <button class="btn" id="toggleTrimBox" disabled>
-                    スライス
-                </button>
-                <button class="btn btn-secondary" id="toggleOutsideView" disabled>
-                    箱外のモデルを表示
-                </button>
-
-
-                <button class="btn btn-danger" id="executeTrim" disabled>
-                    スライス実行
-                </button>
-                <button class="btn btn-secondary" id="resetModel" disabled>
-                    リセット
-                </button>
-            </div>
-
-
-            <div class="control-group">
-                <h3>情報</h3>
-                <div class="info-item">
-                    <span class="info-label">元頂点数:</span>
-                    <span class="info-value" id="originalVertexCount">-</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">表示頂点数:</span>
-                    <span class="info-value" id="currentVertexCount">-</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">ハンドルサイズ:</span>
-                    <span class="info-value" id="handlePixelSize">-</span>
-                </div>
-            </div>
-
-
-
-
-
-
-
-            <div class="control-group">
-                <h3>トリミング箱座標</h3>
-                <div class="info-item">
-                    <span class="info-label">X:</span>
-                    <span class="info-value" id="trimBoxX">-</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Y:</span>
-                    <span class="info-value" id="trimBoxY">-</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Z:</span>
-                    <span class="info-value" id="trimBoxZ">-</span>
-                </div>
-            </div>
-
-
+          </div>
         </div>
+        <div id="searchInput">
+          <img src="assets/search.svg" alt="検索" />
+          <input type="text" placeholder="検索" />
+        </div>
+      </div>
+
+      <div class="main-content">
+        <!-- Sidebar -->
+        <div id="sidebar">
+          <div id="sideMenu">
+            <div id="sideMenuHeader">
+              <div class="addContentsMenu">
+                <button
+                  class="sidebar-button"
+                  id="addMarkerBtn"
+                  title="マーカー"
+                >
+                  <img src="assets/marker.svg" alt="マーカー" />
+                </button>
+                <button class="sidebar-button" id="addPipeBtn" title="パイプ">
+                  <img src="assets/pipeSector.svg" alt="パイプ" />
+                </button>
+                <button
+                  class="sidebar-button"
+                  id="addRulerBtn"
+                  title="ルーラー"
+                >
+                  <img src="assets/brick.svg" alt="ルーラー" />
+                </button>
+                <button class="sidebar-button" id="addBrickBtn" title="レンガ">
+                  <img src="assets/ruler.svg" alt="レンガ" />
+                </button>
+              </div>
+              <div class="sidebar-divider"></div>
+              <div class="addAssetMenu">
+                <button
+                  class="sidebar-button"
+                  id="addMachineBtn"
+                  title="機械を追加"
+                  onclick="document.getElementById('fileInput').click()"
+                >
+                  <img src="assets/addMachine.svg" alt="機械を追加" />
+                </button>
+                <button
+                  class="sidebar-button"
+                  id="addPipeAssetBtn"
+                  title="パイプを追加"
+                >
+                  <img src="assets/addPipe.svg" alt="パイプを追加" />
+                </button>
+                <button
+                  class="sidebar-button"
+                  id="addFlangeBtn"
+                  title="フランジを追加"
+                >
+                  <img src="assets/flange.svg" alt="フランジを追加" />
+                </button>
+                <button
+                  class="sidebar-button"
+                  id="addFlange2Btn"
+                  title="フランジ2を追加"
+                >
+                  <img src="assets/valve.svg" alt="フランジ2を追加" />
+                </button>
+              </div>
+            </div>
+            <div id="sideMenuFooter">
+              <button class="sidebar-button" id="newsBtn" title="ニュース">
+                <img src="assets/news.svg" alt="ニュース" />
+              </button>
+              <button class="sidebar-button" id="accountBtn" title="アカウント">
+                <img src="assets/account.svg" alt="アカウント" />
+              </button>
+              <button class="sidebar-button" id="settingsBtn" title="設定">
+                <img src="assets/settings.svg" alt="設定" />
+              </button>
+            </div>
+          </div>
+        </div>
+        <div id="viewer">
+          <!-- スライス中の白枠 -->
+          <div id="operationFrame"></div>
+
+          <!-- スライス中ステータス -->
+          <div id="slicingStatus" style="display: none">
+            <div class="slicing-status-corner slicing-status-corner-left">
+              <img src="assets/corner.svg" alt="" />
+            </div>
+            <div id="slicingStatusContainer">
+              <div id="slicingStatusText">スライス中...</div>
+              <button id="completeSliceBtn">完了する</button>
+              <div style="width: 1px; height: 28px; background: #c0c3cc"></div>
+              <button id="cancelSliceBtn">
+                <img src="assets/close.svg" alt="閉じる" />
+              </button>
+            </div>
+            <div class="slicing-status-corner slicing-status-corner-right">
+              <img src="assets/corner.svg" alt="" />
+            </div>
+          </div>
+
+          <!-- スライス完了時のステータス -->
+          <div id="sliceViewMode" style="display: none">
+            <div id="sliceViewModeContainer">
+              <div id="sliceViewModeText">スライスモードで表示中</div>
+              <button id="editSliceBtn">編集する</button>
+              <div style="width: 1px; height: 28px; background: #c0c3cc"></div>
+              <button id="closeSliceViewBtn">
+                <img src="assets/close.svg" alt="閉じる" />
+              </button>
+            </div>
+          </div>
+
+          <!-- オプションパネル -->
+          <div id="optionPanel">
+            <div id="optionPanelHeader">
+              <div id="optionPanelTitle">
+                <img id="optionPanelArrow" src="assets/arrow.svg" alt="" />
+                <span>オプションパネル</span>
+              </div>
+            </div>
+            <div id="optionPanelContent">
+              <button id="fullRangeSliceBtn">全範囲を表示する</button>
+              <div class="option-item">
+                <div class="option-label">外側の点群を表示する</div>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="toggleOutsideViewNew" checked />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="option-item">
+                <div class="option-label">天球を表示する（確認用）</div>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="toggleSkyboxSlice" checked />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="option-item">
+                <div class="option-label">矢印の種類</div>
+                <select id="arrowTypeSelect" class="option-select">
+                  <option value="arrow">矢印（arrow）</option>
+                  <option value="arrow_corn">矢印（arrow_corn）</option>
+                </select>
+              </div>
+              <!-- arrow_corn専用のクリック可能領域表示切り替え（arrow_corn選択時のみ表示） -->
+              <div id="arrowCornClickablePanel" class="option-item" style="display: none;">
+                <div class="option-label">arrow_corn クリック領域を表示する</div>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="toggleArrowCornClickable" checked />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <!-- <div class="option-divider"></div> -->
+            </div>
+          </div>
+
+          <div id="dropZone" class="drop-zone">
+            <div>📁</div>
+            <div>PLYファイルをドロップ</div>
+            <div style="font-size: 12px; margin-top: 10px">
+              またはクリックして選択
+            </div>
+          </div>
+          <div id="loadingIndicator">
+            <div>読み込み中...</div>
+          </div>
+
+          <div id="trimmingInfo" class="trimming-info">
+            トリミング操作中 | 面:移動 辺:回転 頂点:対角基点変形 |
+            Escキーでキャンセル
+          </div>
+
+          <!-- 全範囲スライス確認モーダル -->
+          <div id="fullRangeSliceModal" style="display: none">
+            <div id="fullRangeSliceModalOverlay"></div>
+            <div id="fullRangeSliceModalContent">
+              <div id="fullRangeSliceModalHeader">
+                <div id="fullRangeSliceModalTitle">
+                  <p id="fullRangeSliceModalTitleText">
+                    全範囲を表示しようとしています
+                  </p>
+                  <p id="fullRangeSliceModalDescription">
+                    スライス範囲をリセットして、プラント全体を表示しますか？
+                  </p>
+                </div>
+                <button id="fullRangeSliceModalCloseBtn">
+                  <img src="assets/close.svg" alt="閉じる" />
+                </button>
+              </div>
+              <div id="fullRangeSliceModalButtons">
+                <button id="fullRangeSliceModalCancelBtn">キャンセル</button>
+                <button id="fullRangeSliceModalConfirmBtn">表示する</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- スライス解除確認モーダル -->
+          <div id="removeSliceModal" style="display: none">
+            <div id="removeSliceModalOverlay"></div>
+            <div id="removeSliceModalContent">
+              <div id="removeSliceModalHeader">
+                <div id="removeSliceModalTitle">
+                  <p id="removeSliceModalTitleText">
+                    スライスを解除しようとしています
+                  </p>
+                  <div id="removeSliceModalDescription">
+                    <p>スライスした範囲を解除しようとしています。</p>
+                    <p>このまま解除すると、スライス設定は失われます。</p>
+                    <p>よろしいですか？</p>
+                  </div>
+                </div>
+                <button id="removeSliceModalCloseBtn">
+                  <img src="assets/close.svg" alt="閉じる" />
+                </button>
+              </div>
+              <div id="removeSliceModalButtons">
+                <button id="removeSliceModalCancelBtn">
+                  スライス表示を維持する
+                </button>
+                <button id="removeSliceModalConfirmBtn">
+                  スライスを解除する
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 向き調整モーダル -->
+          <div id="orientationModal">
+            <div id="orientationPanel">
+              <h2>📐 向き調整</h2>
+              <p>
+                マウスでモデルを回転させて確認しながら、<br />ボタンで最適な向きに調整してください。
+              </p>
+
+              <div class="preset-controls">
+                <button class="preset-btn" id="presetFront">正面</button>
+                <button class="preset-btn" id="presetTop">上面</button>
+                <button class="preset-btn" id="presetSide">側面</button>
+                <button class="preset-btn" id="presetIso">等角</button>
+              </div>
+
+              <div class="orientation-controls">
+                <button class="orientation-btn" id="rotateXPos">X軸+90°</button>
+                <button class="orientation-btn" id="rotateYPos">Y軸+90°</button>
+                <button class="orientation-btn" id="rotateZPos">Z軸+90°</button>
+                <button class="orientation-btn" id="rotateXNeg">X軸-90°</button>
+                <button class="orientation-btn" id="rotateYNeg">Y軸-90°</button>
+                <button class="orientation-btn" id="rotateZNeg">Z軸-90°</button>
+                <button class="orientation-btn" id="flipX">X軸反転</button>
+                <button class="orientation-btn" id="flipY">Y軸反転</button>
+                <button class="orientation-btn" id="flipZ">Z軸反転</button>
+              </div>
+
+              <div style="display: flex; gap: 15px; justify-content: center">
+                <button class="btn" id="resetOrientation">リセット</button>
+                <button class="btn" id="confirmOrientation">
+                  この向きで確定
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 左側のメニュー -->
+        <div id="leftMenu">
+          <button id="miniMapButton" title="ミニマップ">
+            <img src="assets/miniMap.svg" alt="ミニマップ" />
+          </button>
+        </div>
+
+        <!-- 右下のコントロールUI -->
+        <div id="controlMenu">
+          <div id="viewControl">
+            <div id="viewControlTabs">
+              <button class="view-control-tab" id="orbitTab" title="Orbit">
+                <img src="assets/path.svg" alt="Orbit" />
+              </button>
+              <button class="view-control-tab active" id="lookTab" title="Look">
+                <img src="assets/look.svg" alt="Look" />
+              </button>
+              <button class="view-control-tab" id="thirdTab" title="Third">
+                <img src="assets/fly.svg" alt="Third" />
+              </button>
+            </div>
+          </div>
+          <div id="bottomMenu">
+            <div id="sliceButton">
+              <button id="toggleTrimBoxNew" title="スライス" disabled>
+                <img src="assets/sliceIcon.svg" alt="スライス" />
+              </button>
+            </div>
+            <div id="modeSwitch">
+              <div class="mode-button-wrapper">
+                <button class="mode-button active" id="mode3D" title="3Dモード">
+                  <img src="assets/3dMode.svg" alt="3Dモード" />
+                </button>
+              </div>
+              <div class="mode-button-wrapper">
+                <button
+                  class="mode-button"
+                  id="modeWalkThrough"
+                  title="ウォークスルーモード"
+                >
+                  <img src="assets/2dMode.svg" alt="ウォークスルーモード" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 非表示のファイル入力 -->
+      <input type="file" id="fileInput" accept=".ply" style="display: none" />
     </div>
 
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-            }
-        }
-    </script>
     <script type="module" src="app.js"></script>
-</body>
+  </body>
 </html>

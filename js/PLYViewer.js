@@ -20,6 +20,7 @@ class PLYViewer {
         this.trimBoxManipulator = null;
         this.realtimePreview = null;
         this.trimBoxVisible = false;
+        this.boundaryDisplayModel = null; // スライス実行後の境界表示用
         
         // カメラの初期位置を保存
         this.initialCameraPosition = new THREE.Vector3();
@@ -30,6 +31,9 @@ class PLYViewer {
         this.modelRotation = new THREE.Euler();
         this.originalModelRotation = new THREE.Euler();
         
+        // モデル位置オフセット
+        this.modelPositionOffset = new THREE.Vector3(0, 0, 0); // モデルの位置オフセット（Y軸方向に上げる場合はy値を変更）
+        
         // タブ管理機能
         this.tabManager = null;
         this.tabData = new Map(); // タブごとのデータを保存
@@ -38,14 +42,73 @@ class PLYViewer {
         this.skyboxSphere = null;
         this.skyboxVisible = true; // 初期状態でON
         this.defaultBackgroundColor = new THREE.Color(0x222222);
+        this.skyboxTexture = null; // 天球のテクスチャを保持
+        
+        // グリッド関連
+        this.gridMesh = null;
+        
+        // モード関連
+        this.currentMode = '3d'; // '3d' または 'walkthrough'
+        this.currentViewMode = 'look'; // 'orbit', 'look', 'third'
         
         this.init();
         this.setupEventListeners();
         
-        // TabManagerを初期化（初期化後に実行）
+        // デフォルトPLYファイルを読み込む（TabManagerを使わない）
         setTimeout(() => {
-            this.tabManager = new TabManager(this);
-        }, 100);
+            this.loadDefaultPLY();
+        }, 200);
+    }
+    
+    async loadDefaultPLY() {
+        const defaultPLYPath = 'Scaniverse 2024-07-21 155128.ply';
+        
+        try {
+            console.log('デフォルトPLYファイルを読み込み中:', defaultPLYPath);
+            
+            const response = await fetch(defaultPLYPath);
+            if (!response.ok) {
+                console.warn('デフォルトPLYファイルが見つかりません:', defaultPLYPath);
+                return;
+            }
+            
+            const arrayBuffer = await response.arrayBuffer();
+            if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+                console.error('デフォルトPLYファイルが空です');
+                return;
+            }
+            
+            // 直接PLYファイルを読み込む
+            await this.loadPLYFromArrayBuffer(arrayBuffer);
+            
+            // デフォルトモデルの向きを設定（等角 + x軸-90度）
+            setTimeout(() => {
+                if (!this.currentModel) return;
+                
+                // x軸に-90度回転を設定
+                this.modelRotation.x = -Math.PI / 2;
+                this.currentModel.rotation.copy(this.modelRotation);
+                
+                // 等角視点を設定
+                this.setPresetView('iso');
+                
+                // ブラウザ読み込み時の初期カメラ位置として保存（等角視点の位置）
+                this.initialCameraPosition.copy(this.camera.position);
+                this.initialCameraTarget.copy(this.controls.target);
+                
+                console.log('デフォルトモデルの向きを設定: 等角 + x軸-90度', {
+                    initialCameraPosition: this.initialCameraPosition,
+                    initialCameraTarget: this.initialCameraTarget
+                });
+                
+                // コントロールを有効化
+                this.enableControls();
+            }, 500);
+            
+            console.log('デフォルトPLYファイルを読み込みました');
+        } catch (error) {
+            console.error('デフォルトPLYファイルの読み込みエラー:', error);
+        }
     }
 
     init() {
@@ -110,11 +173,20 @@ class PLYViewer {
     setupEventListeners() {
         const fileInput = document.getElementById('fileInput');
         const dropZone = document.getElementById('dropZone');
+        
+        // 新しいUI要素
+        const toggleTrimBoxNew = document.getElementById('toggleTrimBoxNew');
+        const toggleOutsideViewNew = document.getElementById('toggleOutsideViewNew');
+        const completeSliceBtn = document.getElementById('completeSliceBtn');
+        const cancelSliceBtn = document.getElementById('cancelSliceBtn');
+        const fullRangeSliceBtn = document.getElementById('fullRangeSliceBtn');
+        const optionPanel = document.getElementById('optionPanel');
+        
+        // 旧UI要素（後方互換性のため残す）
         const toggleDisplayMode = document.getElementById('toggleDisplayMode');
         const toggleSkybox = document.getElementById('toggleSkybox');
         const toggleTrimBox = document.getElementById('toggleTrimBox');
         const toggleOutsideView = document.getElementById('toggleOutsideView');
-
         const executeTrim = document.getElementById('executeTrim');
         const resetModel = document.getElementById('resetModel');
         const resetCamera = document.getElementById('resetCamera');
@@ -138,18 +210,244 @@ class PLYViewer {
             }
         });
 
-        toggleDisplayMode.addEventListener('click', () => this.toggleDisplayMode());
-        toggleSkybox.addEventListener('change', (e) => this.toggleSkybox(e.target.checked));
-        toggleTrimBox.addEventListener('click', () => this.toggleTrimBox());
-        toggleOutsideView.addEventListener('click', () => this.toggleOutsideView());
+        // 新しいUI要素のイベントリスナー
+        if (toggleTrimBoxNew) {
+            toggleTrimBoxNew.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('スライスボタンがクリックされました');
+                
+                // スライスモードで表示中の場合は、モデル全体を復元してからスライスモードに入る
+                const sliceViewMode = document.getElementById('sliceViewMode');
+                if (sliceViewMode && sliceViewMode.style.display !== 'none') {
+                    // モデル全体を表示する初期状態に戻す
+                    this.resetModel();
+                    // スライス完了時のUIを非表示
+                    sliceViewMode.style.display = 'none';
+                    // スライスモードに入る
+                    this.toggleTrimBox();
+                    return;
+                }
+                
+                // スライス中（trimBoxVisibleがtrue）の場合は何もしない
+                if (this.trimBoxVisible) {
+                    console.log('スライス中なのでスライスボタンは無効です');
+                    return;
+                }
+                
+                this.toggleTrimBox();
+            });
+        } else {
+            console.warn('toggleTrimBoxNew要素が見つかりません');
+        }
+        if (toggleOutsideViewNew) {
+            toggleOutsideViewNew.addEventListener('change', (e) => {
+                this.toggleOutsideView();
+                toggleOutsideViewNew.checked = this.realtimePreview.showOutside;
+            });
+        }
 
+        // スライスモード中の天球トグル
+        const toggleSkyboxSlice = document.getElementById('toggleSkyboxSlice');
+        if (toggleSkyboxSlice) {
+            toggleSkyboxSlice.addEventListener('change', (e) => {
+                this.toggleSkyboxInSliceMode(e.target.checked);
+            });
+        }
+
+        // 矢印タイプの切り替え
+        const arrowTypeSelect = document.getElementById('arrowTypeSelect');
+        if (arrowTypeSelect) {
+            arrowTypeSelect.addEventListener('change', (e) => {
+                this.changeArrowType(e.target.value);
+            });
+        }
+
+        // arrow_cornクリック可能領域表示切り替えトグル
+        const toggleArrowCornClickable = document.getElementById('toggleArrowCornClickable');
+        if (toggleArrowCornClickable) {
+            toggleArrowCornClickable.addEventListener('change', (e) => {
+                this.setArrowCornClickableVisible(e.target.checked);
+            });
+        }
+
+
+
+        if (completeSliceBtn) {
+            completeSliceBtn.addEventListener('click', () => this.executeTrim());
+        }
+        if (cancelSliceBtn) {
+            cancelSliceBtn.addEventListener('click', () => {
+                this.toggleTrimBox(); // スライスを中止
+            });
+        }
+        if (fullRangeSliceBtn) {
+            fullRangeSliceBtn.addEventListener('click', () => this.fullRangeSlice());
+        }
+
+        // 全範囲スライスモーダルのイベントリスナー
+        const fullRangeSliceModal = document.getElementById('fullRangeSliceModal');
+        const fullRangeSliceModalCloseBtn = document.getElementById('fullRangeSliceModalCloseBtn');
+        const fullRangeSliceModalCancelBtn = document.getElementById('fullRangeSliceModalCancelBtn');
+        const fullRangeSliceModalConfirmBtn = document.getElementById('fullRangeSliceModalConfirmBtn');
         
-        executeTrim.addEventListener('click', () => this.executeTrim());
-        resetModel.addEventListener('click', () => this.resetModel());
-        resetCamera.addEventListener('click', () => this.resetCameraPosition());
+        if (fullRangeSliceModalCloseBtn) {
+            fullRangeSliceModalCloseBtn.addEventListener('click', () => {
+                this.hideFullRangeSliceModal();
+            });
+        }
+        if (fullRangeSliceModalCancelBtn) {
+            fullRangeSliceModalCancelBtn.addEventListener('click', () => {
+                this.hideFullRangeSliceModal();
+            });
+        }
+        if (fullRangeSliceModalConfirmBtn) {
+            fullRangeSliceModalConfirmBtn.addEventListener('click', () => {
+                console.log('全範囲を表示するボタンがクリックされました');
+                this.executeFullRangeSlice();
+            });
+        } else {
+            console.warn('fullRangeSliceModalConfirmBtn要素が見つかりません');
+        }
+        // オーバーレイをクリックしてもモーダルを閉じる
+        if (fullRangeSliceModal) {
+            const overlay = document.getElementById('fullRangeSliceModalOverlay');
+            if (overlay) {
+                overlay.addEventListener('click', () => {
+                    this.hideFullRangeSliceModal();
+                });
+            }
+        }
+
+        // オプションパネルの開閉機能
+        const optionPanelHeader = document.getElementById('optionPanelHeader');
+        if (optionPanelHeader && optionPanel) {
+            optionPanelHeader.addEventListener('click', () => {
+                this.toggleOptionPanel();
+            });
+        }
+
+        // スライス完了時のUIのイベントリスナー
+        const editSliceBtn = document.getElementById('editSliceBtn');
+        const closeSliceViewBtn = document.getElementById('closeSliceViewBtn');
+        if (editSliceBtn) {
+            editSliceBtn.addEventListener('click', () => {
+                // モデル全体を表示する初期状態に戻す
+                this.resetModel();
+                // スライス完了時のUIを非表示にして、編集モードに戻す
+                const sliceViewMode = document.getElementById('sliceViewMode');
+                if (sliceViewMode) {
+                    sliceViewMode.style.display = 'none';
+                }
+                // スライスモードを再度有効化
+                this.toggleTrimBox();
+            });
+        }
+        if (closeSliceViewBtn) {
+            closeSliceViewBtn.addEventListener('click', () => {
+                // モーダルを表示
+                this.showRemoveSliceModal();
+            });
+        }
+
+        // スライス解除確認モーダルのイベントリスナー
+        const removeSliceModal = document.getElementById('removeSliceModal');
+        const removeSliceModalCloseBtn = document.getElementById('removeSliceModalCloseBtn');
+        const removeSliceModalCancelBtn = document.getElementById('removeSliceModalCancelBtn');
+        const removeSliceModalConfirmBtn = document.getElementById('removeSliceModalConfirmBtn');
+        
+        if (removeSliceModalCloseBtn) {
+            removeSliceModalCloseBtn.addEventListener('click', () => {
+                this.hideRemoveSliceModal();
+            });
+        }
+        if (removeSliceModalCancelBtn) {
+            removeSliceModalCancelBtn.addEventListener('click', () => {
+                this.hideRemoveSliceModal();
+            });
+        }
+        if (removeSliceModalConfirmBtn) {
+            removeSliceModalConfirmBtn.addEventListener('click', () => {
+                this.executeRemoveSlice();
+            });
+        }
+        // オーバーレイをクリックしてもモーダルを閉じる
+        if (removeSliceModal) {
+            const overlay = document.getElementById('removeSliceModalOverlay');
+            if (overlay) {
+                overlay.addEventListener('click', () => {
+                    this.hideRemoveSliceModal();
+                });
+            }
+        }
+
+        // モード切り替えのイベントリスナー
+        const mode3D = document.getElementById('mode3D');
+        const modeWalkThrough = document.getElementById('modeWalkThrough');
+        if (mode3D) {
+            mode3D.addEventListener('click', () => this.switchMode('3d'));
+        }
+        if (modeWalkThrough) {
+            modeWalkThrough.addEventListener('click', () => this.switchMode('walkthrough'));
+        }
+
+        // ビューコントロールタブのイベントリスナー
+        const orbitTab = document.getElementById('orbitTab');
+        const lookTab = document.getElementById('lookTab');
+        const thirdTab = document.getElementById('thirdTab');
+        if (orbitTab) {
+            orbitTab.addEventListener('click', () => this.switchViewMode('orbit'));
+        }
+        if (lookTab) {
+            lookTab.addEventListener('click', () => this.switchViewMode('look'));
+        }
+        if (thirdTab) {
+            thirdTab.addEventListener('click', () => this.switchViewMode('third'));
+        }
+
+        // 旧UI要素のイベントリスナー（後方互換性）
+        if (toggleDisplayMode) {
+            toggleDisplayMode.addEventListener('click', () => this.toggleDisplayMode());
+        }
+        if (toggleSkybox) {
+            toggleSkybox.addEventListener('change', (e) => this.toggleSkybox(e.target.checked));
+        }
+        if (toggleTrimBox) {
+            toggleTrimBox.addEventListener('click', () => this.toggleTrimBox());
+        }
+        if (toggleOutsideView) {
+            toggleOutsideView.addEventListener('click', () => this.toggleOutsideView());
+        }
+        if (executeTrim) {
+            executeTrim.addEventListener('click', () => this.executeTrim());
+        }
+        if (resetModel) {
+            resetModel.addEventListener('click', () => this.resetModel());
+        }
+        if (resetCamera) {
+            resetCamera.addEventListener('click', () => this.resetCameraPosition());
+        }
 
         // 向き調整関連のイベントリスナー
         this.setupOrientationEventListeners();
+        
+        // 初期化時にビューコントロールアイコンの色を設定
+        setTimeout(() => {
+            // 初期状態のスライド背景位置を設定
+            const viewControlTabs = document.getElementById('viewControlTabs');
+            if (viewControlTabs) {
+                viewControlTabs.setAttribute('data-active-index', '1'); // lookタブが初期状態
+            }
+            
+            const modeSwitch = document.getElementById('modeSwitch');
+            if (modeSwitch) {
+                modeSwitch.setAttribute('data-active-index', '0'); // 3Dモードが初期状態
+            }
+            
+            this.updateViewControlIconColors();
+            this.updateModeSwitchIconColors();
+            this.updateSliceButtonIconColor();
+        }, 100);
     }
     
 
@@ -175,20 +473,8 @@ class PLYViewer {
                 reader.readAsArrayBuffer(file);
             });
             
-            // TabManagerがある場合は新しいタブを作成
-            if (this.tabManager) {
-                // 現在のタブデータを保存
-                this.saveCurrentTabData();
-                
-                // 新しいタブを作成
-                const tab = this.tabManager.addFileTab(file, arrayBuffer);
-                
-                // 新しいタブのPLYファイルを読み込み
-                await this.loadPLYFromArrayBuffer(arrayBuffer, tab.id);
-            } else {
-                // TabManagerがない場合は従来の処理
-                await this.loadPLYFromArrayBuffer(arrayBuffer, 1);
-            }
+            // 直接PLYファイルを読み込む（タブデータを使わない）
+            await this.loadPLYFromArrayBuffer(arrayBuffer);
             
         } catch (error) {
             console.error('PLYファイルの読み込みエラー:', error);
@@ -233,9 +519,17 @@ class PLYViewer {
                 this.currentModel.rotation.copy(this.modelRotation);
             }
             
+            // モデルの位置を設定（オフセットを適用）
+            this.currentModel.position.copy(this.modelPositionOffset);
+            
             this.scene.add(this.currentModel);
             this.originalModel = this.currentModel.clone();
+            // originalModelにも位置を設定
+            this.originalModel.position.copy(this.modelPositionOffset);
             this.realtimePreview.setOriginalModel(this.currentModel);
+            
+            // グリッドを更新
+            this.updateGrid();
             
             console.log('モデル作成完了:', this.currentModel);
         } catch (error) {
@@ -258,18 +552,34 @@ class PLYViewer {
             this.originalModel = null;
         }
         
+        // グリッドを削除
+        if (this.gridMesh) {
+            this.scene.remove(this.gridMesh);
+            this.gridMesh.geometry.dispose();
+            this.gridMesh.material.dispose();
+            this.gridMesh = null;
+        }
+
+        // 境界表示モデルをクリア
+        if (this.boundaryDisplayModel) {
+            this.scene.remove(this.boundaryDisplayModel);
+            this.boundaryDisplayModel.geometry.dispose();
+            this.boundaryDisplayModel.material.dispose();
+            this.boundaryDisplayModel = null;
+        }
+
         this.trimBoxManipulator.clear();
         this.realtimePreview.clearPreview(this.scene);
         this.trimBoxVisible = false;
     }
 
-    // タブ関連のメソッド
-    async loadPLYFromArrayBuffer(arrayBuffer, tabId) {
+    // PLYファイル読み込みメソッド（タブデータを使わない簡素版）
+    async loadPLYFromArrayBuffer(arrayBuffer) {
         const loadingIndicator = document.getElementById('loadingIndicator');
         const dropZone = document.getElementById('dropZone');
         
-        loadingIndicator.style.display = 'block';
-        dropZone.classList.add('hidden');
+        if (loadingIndicator) loadingIndicator.style.display = 'block';
+        if (dropZone) dropZone.classList.add('hidden');
 
         try {
             if (!arrayBuffer || arrayBuffer.byteLength === 0) {
@@ -284,23 +594,22 @@ class PLYViewer {
             }
 
             console.log('PLY読み込み成功:', {
-                tabId: tabId,
                 vertices: geometry.attributes.position.count,
                 hasColors: !!geometry.attributes.color
             });
 
-            // タブデータとして保存
-            this.tabData.set(tabId, {
-                originalGeometry: geometry.clone(),
-                currentGeometry: geometry.clone(),
-                modelRotation: new THREE.Euler(),
-                originalModelRotation: new THREE.Euler(),
-                cameraPosition: null,
-                cameraTarget: null
-            });
-
-            // 現在のタブに切り替え
-            this.switchToTabData(this.tabManager.getCurrentTab());
+            // 直接モデルを作成
+            this.originalGeometry = geometry.clone();
+            this.createModel(geometry.clone());
+            
+            if (this.currentModel) {
+                this.fitCameraToModel();
+                this.updateUI();
+                this.enableControls();
+                console.log('モデル作成完了');
+            } else {
+                throw new Error('モデルの作成に失敗しました');
+            }
             
         } catch (error) {
             console.error('PLYファイルの読み込みエラー:', error);
@@ -308,7 +617,7 @@ class PLYViewer {
             // エラー時は現在のモデルをクリアして安全な状態に戻す
             this.clearModel();
         } finally {
-            loadingIndicator.style.display = 'none';
+            if (loadingIndicator) loadingIndicator.style.display = 'none';
         }
     }
 
@@ -318,9 +627,11 @@ class PLYViewer {
             return;
         }
 
+        console.log('switchToTabData: タブID', tab.id, 'タブ名', tab.name);
+        
         const tabData = this.tabData.get(tab.id);
         if (!tabData) {
-            console.warn('タブデータが見つかりません:', tab.id);
+            console.warn('タブデータが見つかりません:', tab.id, '利用可能なタブデータ:', Array.from(this.tabData.keys()));
             return;
         }
 
@@ -328,6 +639,11 @@ class PLYViewer {
             console.error('switchToTabData: 無効なジオメトリデータ');
             return;
         }
+        
+        console.log('switchToTabData: ジオメトリデータ確認完了', {
+            vertices: tabData.currentGeometry.attributes.position.count,
+            hasColors: !!tabData.currentGeometry.attributes.color
+        });
 
         // 現在のモデルをクリア
         this.clearModel();
@@ -337,6 +653,7 @@ class PLYViewer {
         this.modelRotation.copy(tabData.modelRotation);
         this.originalModelRotation.copy(tabData.originalModelRotation);
         
+        console.log('switchToTabData: モデルを作成中...');
         this.createModel(tabData.currentGeometry.clone());
         
         // createModelが失敗した場合は処理を中断
@@ -344,6 +661,11 @@ class PLYViewer {
             console.error('switchToTabData: モデルの作成に失敗しました');
             return;
         }
+        
+        console.log('switchToTabData: モデル作成成功', {
+            type: this.currentModel.constructor.name,
+            vertices: this.currentModel.geometry.attributes.position.count
+        });
         
         // カメラ位置が保存されている場合は復元
         if (tabData.cameraPosition && tabData.cameraTarget) {
@@ -416,6 +738,182 @@ class PLYViewer {
         console.log('カメラ位置調整完了:', { center, size, cameraZ });
     }
 
+    updateGrid() {
+        if (!this.currentModel) {
+            // モデルがない場合はグリッドを削除
+            if (this.gridMesh) {
+                this.scene.remove(this.gridMesh);
+                this.gridMesh.geometry.dispose();
+                this.gridMesh.material.dispose();
+                this.gridMesh = null;
+            }
+            return;
+        }
+
+        // 既存のグリッドを削除
+        if (this.gridMesh) {
+            this.scene.remove(this.gridMesh);
+            this.gridMesh.geometry.dispose();
+            this.gridMesh.material.dispose();
+            this.gridMesh = null;
+        }
+
+        // モデルのバウンディングボックスを取得
+        this.currentModel.updateMatrixWorld();
+        const box = new THREE.Box3().setFromObject(this.currentModel);
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+        const min = box.min;
+        
+        // モデルの実際の頂点座標から最小Yを直接取得（より正確）
+        const modelGeometry = this.currentModel.geometry;
+        const positions = modelGeometry.attributes.position.array;
+        let actualMinY = Infinity;
+        let actualMaxY = -Infinity;
+        
+        // すべての頂点をワールド座標に変換して最小Yを取得
+        let processedCount = 0;
+        for (let i = 0; i < positions.length; i += 3) {
+            const localPoint = new THREE.Vector3(
+                positions[i],
+                positions[i + 1],
+                positions[i + 2]
+            );
+            
+            // ワールド座標に変換（モデルの回転と位置を考慮）
+            const worldPoint = localPoint.clone();
+            worldPoint.applyMatrix4(this.currentModel.matrixWorld);
+            
+            if (worldPoint.y < actualMinY) actualMinY = worldPoint.y;
+            if (worldPoint.y > actualMaxY) actualMaxY = worldPoint.y;
+            processedCount++;
+        }
+        
+        // actualMinYがInfinityのままの場合、バウンディングボックスのmin.yを使用
+        if (actualMinY === Infinity) {
+            console.warn('actualMinYがInfinityのため、バウンディングボックスのmin.yを使用します');
+            actualMinY = min.y;
+        }
+        
+        // グリッドのサイズ（モデルの最大寸法の1.5倍程度に縮小）
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const gridSize = maxDim * 8;
+        const gridSpacing = maxDim * 0.2; // グリッドの間隔を細かく
+
+        // グリッドのY座標（モデルのすぐ下）
+        // 実際の最小Y座標を使用（より正確）
+        // わずかに下にオフセット（0.01倍）してモデルと重ならないように
+        const gridY = actualMinY - maxDim * 0.01;
+        
+        // デバッグ情報
+        console.log('グリッド位置計算:', {
+            processedVertices: processedCount,
+            boundingBoxMinY: min.y,
+            actualMinY: actualMinY,
+            actualMaxY: actualMaxY,
+            gridY: gridY,
+            offset: actualMinY - gridY,
+            maxDim: maxDim,
+            size: size,
+            center: center,
+            modelPosition: this.currentModel.position,
+            modelRotation: this.currentModel.rotation
+        });
+        
+        // 遠近感を持たせるためのグリッド作成
+        const vertices = [];
+        const colors = [];
+        const gridColor = new THREE.Color(0x030303); // シアン色
+        const gridAlpha = 0.3; // 透明度
+        
+        // グリッドの分割数
+        const divisions = Math.floor(gridSize / gridSpacing);
+        
+        // シンプルな均一なグリッドを作成
+        for (let i = -divisions; i <= divisions; i++) {
+            for (let j = -divisions; j <= divisions; j++) {
+                // グリッド点の位置（等間隔）
+                const x = center.x + i * gridSpacing;
+                const z = center.z + j * gridSpacing;
+                
+                // 対角線を引く（三角形のグリッド）
+                if (i < divisions && j < divisions) {
+                    // 右下から左上への対角線
+                    vertices.push(
+                        x, gridY, z,
+                        center.x + (i + 1) * gridSpacing, gridY, center.z + (j + 1) * gridSpacing
+                    );
+                    colors.push(
+                        gridColor.r, gridColor.g, gridColor.b,
+                        gridColor.r, gridColor.g, gridColor.b
+                    );
+                }
+                
+                // 水平線（X方向）
+                if (i < divisions) {
+                    vertices.push(
+                        x, gridY, z,
+                        center.x + (i + 1) * gridSpacing, gridY, z
+                    );
+                    colors.push(
+                        gridColor.r, gridColor.g, gridColor.b,
+                        gridColor.r, gridColor.g, gridColor.b
+                    );
+                }
+                
+                // 垂直線（Z方向）
+                if (j < divisions) {
+                    vertices.push(
+                        x, gridY, z,
+                        x, gridY, center.z + (j + 1) * gridSpacing
+                    );
+                    colors.push(
+                        gridColor.r, gridColor.g, gridColor.b,
+                        gridColor.r, gridColor.g, gridColor.b
+                    );
+                }
+            }
+        }
+        
+        // ジオメトリを作成
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+        geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+        
+        // マテリアルを作成（線の太さを細く）
+        const material = new THREE.LineBasicMaterial({
+            vertexColors: true,
+            transparent: true,
+            opacity: gridAlpha,
+            linewidth: 1
+        });
+        
+        // グリッドメッシュを作成
+        this.gridMesh = new THREE.LineSegments(geometry, material);
+        this.gridMesh.renderOrder = 100; // モデルの前に描画（表示されるように）
+        this.gridMesh.position.set(0, 0, 0); // 位置を明示的に設定
+        
+        // シーンに追加
+        this.scene.add(this.gridMesh);
+        
+        // グリッドの実際の位置を確認
+        const gridBounds = new THREE.Box3().setFromObject(this.gridMesh);
+        const gridCenterPos = gridBounds.getCenter(new THREE.Vector3());
+        const gridMinPos = gridBounds.min;
+        
+        console.log('グリッド作成完了:', {
+            gridSize: gridSize,
+            gridSpacing: gridSpacing,
+            calculatedGridY: gridY,
+            actualGridMinY: gridMinPos.y,
+            actualGridCenterY: gridCenterPos.y,
+            gridMeshPosition: this.gridMesh.position,
+            vertices: vertices.length / 3,
+            firstVertexY: vertices[1], // 最初の頂点のY座標
+            secondVertexY: vertices[4] // 2番目の頂点のY座標
+        });
+    }
+
     toggleDisplayMode() {
         if (!this.currentModel) return;
         
@@ -448,6 +946,9 @@ class PLYViewer {
         // 向きを復元
         this.currentModel.rotation.copy(currentRotation);
         
+        // モデルの位置を設定（オフセットを適用）
+        this.currentModel.position.copy(this.modelPositionOffset);
+        
         this.scene.add(this.currentModel);
         this.realtimePreview.setOriginalModel(this.currentModel);
         
@@ -460,12 +961,111 @@ class PLYViewer {
     }
 
     toggleTrimBox() {
+        console.log('toggleTrimBox呼び出し:', {
+            currentModel: !!this.currentModel,
+            trimBoxVisible: this.trimBoxVisible
+        });
+        
         if (!this.currentModel) {
             console.warn('toggleTrimBox: currentModelが存在しません');
+            alert('モデルが読み込まれていません。PLYファイルを読み込んでください。');
             return;
         }
         
         this.trimBoxVisible = !this.trimBoxVisible;
+
+        // スライスモード時の天球と背景色の制御
+        if (this.trimBoxVisible) {
+            // スライスモードON: 天球を常に表示（OFF: グレー、ON: 天球画像）
+            // スライスモード用の天球トグルを初期状態（OFF）に設定
+            const toggleSkyboxSlice = document.getElementById('toggleSkyboxSlice');
+            if (toggleSkyboxSlice) {
+                toggleSkyboxSlice.checked = false;
+                // 天球の表示方法を更新（OFF: グレー）
+                this.toggleSkyboxInSliceMode(false);
+            }
+        } else {
+            // スライスモードOFF: 天球の表示状態を元に戻す
+            if (this.skyboxSphere && this.skyboxSphere.material) {
+                // 天球のテクスチャを復元
+                if (this.skyboxTexture) {
+                    this.skyboxSphere.material.map = this.skyboxTexture;
+                    this.skyboxSphere.material.color.setHex(0xffffff); // 色を白に戻す
+                    this.skyboxSphere.material.needsUpdate = true;
+                }
+                this.skyboxSphere.visible = this.skyboxVisible;
+            }
+            if (this.skyboxVisible) {
+                this.scene.background = null; // 天球表示時は背景色を無効
+            } else {
+                this.scene.background = this.defaultBackgroundColor; // デフォルト背景色
+            }
+        }
+
+        // 白枠の表示/非表示
+        const operationFrame = document.getElementById('operationFrame');
+        if (operationFrame) {
+            if (this.trimBoxVisible) {
+                operationFrame.classList.add('active');
+            } else {
+                operationFrame.classList.remove('active');
+            }
+        }
+        
+        // スライス中ステータスの表示/非表示
+        const slicingStatus = document.getElementById('slicingStatus');
+        if (slicingStatus) {
+            slicingStatus.style.display = this.trimBoxVisible ? 'flex' : 'none';
+        }
+        
+        // オプションパネルの表示/非表示
+        const optionPanel = document.getElementById('optionPanel');
+        if (optionPanel) {
+            if (this.trimBoxVisible) {
+                // スライスモードに入ったときは開いた状態にする
+                optionPanel.style.display = 'block'; // 表示を復元
+                optionPanel.classList.add('active');
+                optionPanel.classList.remove('closed');
+                
+                // 矢印タイプセレクトボックスの値を現在の設定に合わせる
+                const arrowTypeSelect = document.getElementById('arrowTypeSelect');
+                if (arrowTypeSelect && this.trimBoxManipulator) {
+                    const currentType = this.trimBoxManipulator.arrowType || 'arrow';
+                    arrowTypeSelect.value = currentType;
+                    
+                    // arrow_cornクリック可能領域サイズ調整パネルの表示/非表示を切り替え
+                    const clickablePanel = document.getElementById('arrowCornClickablePanel');
+                    if (clickablePanel) {
+                        clickablePanel.style.display = currentType === 'arrow_corn' ? 'flex' : 'none';
+                        
+                        // arrow_cornの場合、現在の表示状態をUIに反映
+                        if (currentType === 'arrow_corn') {
+                            const toggle = document.getElementById('toggleArrowCornClickable');
+                            if (toggle && this.trimBoxManipulator.arrowCornClickableVisible !== undefined) {
+                                toggle.checked = this.trimBoxManipulator.arrowCornClickableVisible;
+                            }
+                        }
+                    }
+                }
+            } else {
+                // スライスモードを抜ける時は完全に非表示
+                optionPanel.classList.remove('active');
+                optionPanel.classList.remove('closed');
+                optionPanel.style.display = 'none';
+            }
+        }
+        
+        // スライスボタンの状態更新
+        const sliceButton = document.getElementById('sliceButton');
+        if (sliceButton) {
+            if (this.trimBoxVisible) {
+                sliceButton.classList.add('active');
+            } else {
+                sliceButton.classList.remove('active');
+            }
+            // アイコンの色を更新
+            this.updateSliceButtonIconColor();
+        }
         
         if (this.trimBoxVisible) {
             // 回転を考慮したバウンディングボックスを取得
@@ -480,11 +1080,20 @@ class PLYViewer {
             
             // 箱外モデル表示ボタンをリセット
             const toggleOutsideButton = document.getElementById('toggleOutsideView');
-            toggleOutsideButton.textContent = '箱外モデル表示';
+            if (toggleOutsideButton) {
+                toggleOutsideButton.textContent = '箱外モデル表示';
+            }
+            const toggleOutsideViewNew = document.getElementById('toggleOutsideViewNew');
+            if (toggleOutsideViewNew) {
+                toggleOutsideViewNew.checked = true;
+            }
         }
         
+        // 旧UI要素の更新（後方互換性）
         const toggleButton = document.getElementById('toggleTrimBox');
-        toggleButton.textContent = this.trimBoxVisible ? 'スライスを中止する' : 'スライス';
+        if (toggleButton) {
+            toggleButton.textContent = this.trimBoxVisible ? 'スライスを中止する' : 'スライス';
+        }
     }
 
     updatePreview() {
@@ -573,18 +1182,69 @@ class PLYViewer {
         this.currentModel.geometry.dispose();
         this.currentModel.material.dispose();
         
+        // トリミング箱の情報を保存（境界表示用）
+        const savedTrimBoxInfo = {
+            position: this.trimBoxManipulator.trimBox.position.clone(),
+            rotation: this.trimBoxManipulator.trimBox.rotation.clone(),
+            size: new THREE.Vector3(
+                this.trimBoxManipulator.trimBox.geometry.parameters.width / 2,
+                this.trimBoxManipulator.trimBox.geometry.parameters.height / 2,
+                this.trimBoxManipulator.trimBox.geometry.parameters.depth / 2
+            )
+        };
+
         this.createModel(newGeometry);
-        
+
         // 向きを復元
         this.currentModel.rotation.copy(currentRotation);
         this.modelRotation.copy(currentRotation);
-        
-        this.trimBoxManipulator.clear();
+
+        // 新しいモデルをrealtimePreviewに設定
+        this.realtimePreview.setOriginalModel(this.currentModel);
+
+        // トリミング箱をクリアする前にプレビューを更新
         this.realtimePreview.clearPreview(this.scene);
+
+        this.trimBoxManipulator.clear();
         this.trimBoxVisible = false;
+
+        // 境界点群を白く表示（スライス中の断面表示を継続）
+        this.createBoundaryDisplay(savedTrimBoxInfo, currentRotation);
+
+
+        // 新しいUI要素の状態を更新
+        const operationFrame = document.getElementById('operationFrame');
+        if (operationFrame) {
+            operationFrame.classList.remove('active');
+        }
+        const slicingStatus = document.getElementById('slicingStatus');
+        if (slicingStatus) {
+            slicingStatus.style.display = 'none';
+        }
+        const optionPanel = document.getElementById('optionPanel');
+        if (optionPanel) {
+            optionPanel.classList.remove('active');
+            optionPanel.classList.remove('closed');
+            optionPanel.style.display = 'none'; // スライス実行後は完全に非表示
+        }
+        const sliceButton = document.getElementById('sliceButton');
+        if (sliceButton) {
+            sliceButton.classList.remove('active');
+            // アイコンの色を更新
+            this.updateSliceButtonIconColor();
+        }
         
+        // スライス完了時のUIを表示
+        const sliceViewMode = document.getElementById('sliceViewMode');
+        if (sliceViewMode) {
+            sliceViewMode.style.display = 'flex';
+        }
+        
+        // 旧UI要素の更新（後方互換性）
         const toggleButton = document.getElementById('toggleTrimBox');
-        toggleButton.textContent = 'スライス';
+        if (toggleButton) {
+            toggleButton.textContent = 'スライス';
+        }
         
         this.updateUI();
         
@@ -593,6 +1253,264 @@ class PLYViewer {
             trimmedVertices: vertexCount,
             originalVertices: positions.length / 3
         });
+    }
+
+    createBoundaryDisplay(trimBoxInfo, modelRotation) {
+        if (!this.currentModel) return;
+
+        // 既存の境界モデルがあればクリア
+        if (this.boundaryDisplayModel) {
+            this.scene.remove(this.boundaryDisplayModel);
+            this.boundaryDisplayModel.geometry.dispose();
+            this.boundaryDisplayModel.material.dispose();
+            this.boundaryDisplayModel = null;
+        }
+
+        const geometry = this.currentModel.geometry;
+        const positions = geometry.attributes.position.array;
+        const boundaryPositions = [];
+        const boundaryThreshold = 0.05; // 境界検出の閾値
+
+        // トリミング箱の逆変換行列を計算
+        const trimBoxMatrix = new THREE.Matrix4();
+        trimBoxMatrix.makeRotationFromEuler(trimBoxInfo.rotation);
+        trimBoxMatrix.setPosition(trimBoxInfo.position);
+        const trimBoxInverseMatrix = trimBoxMatrix.clone().invert();
+
+        // 各頂点が境界に近いかチェック
+        for (let i = 0; i < positions.length; i += 3) {
+            const localPoint = new THREE.Vector3(
+                positions[i],
+                positions[i + 1],
+                positions[i + 2]
+            );
+
+            // ワールド座標に変換（モデルの回転を適用）
+            const worldPoint = localPoint.clone();
+            worldPoint.applyEuler(modelRotation);
+
+            // トリミング箱のローカル座標系に変換
+            const trimBoxLocalPoint = worldPoint.clone();
+            trimBoxLocalPoint.applyMatrix4(trimBoxInverseMatrix);
+
+            // 各面からの距離を計算
+            const distanceToXFace = Math.abs(Math.abs(trimBoxLocalPoint.x) - trimBoxInfo.size.x);
+            const distanceToYFace = Math.abs(Math.abs(trimBoxLocalPoint.y) - trimBoxInfo.size.y);
+            const distanceToZFace = Math.abs(Math.abs(trimBoxLocalPoint.z) - trimBoxInfo.size.z);
+
+            // どれか一つの面に近い場合は境界点群
+            const minDistance = Math.min(distanceToXFace, distanceToYFace, distanceToZFace);
+            if (minDistance <= boundaryThreshold) {
+                boundaryPositions.push(positions[i], positions[i + 1], positions[i + 2]);
+            }
+        }
+
+        if (boundaryPositions.length === 0) return;
+
+        // 境界点群を白く表示
+        const boundaryGeometry = new THREE.BufferGeometry();
+        boundaryGeometry.setAttribute('position', new THREE.Float32BufferAttribute(boundaryPositions, 3));
+
+        const boundaryMaterial = new THREE.PointsMaterial({
+            size: 0.040, // 少し大きめに表示
+            color: 0xffffff,
+            depthTest: true
+        });
+
+        this.boundaryDisplayModel = new THREE.Points(boundaryGeometry, boundaryMaterial);
+        this.boundaryDisplayModel.rotation.copy(modelRotation);
+        this.scene.add(this.boundaryDisplayModel);
+
+        console.log('境界点群を表示:', {
+            boundaryPoints: boundaryPositions.length / 3
+        });
+    }
+
+    fullRangeSlice() {
+        if (!this.currentModel) {
+            console.warn('fullRangeSlice: currentModelが存在しません');
+            alert('モデルが読み込まれていません。PLYファイルを読み込んでください。');
+            return;
+        }
+        
+        // モーダルを表示
+        this.showFullRangeSliceModal();
+    }
+
+    showFullRangeSliceModal() {
+        const modal = document.getElementById('fullRangeSliceModal');
+        if (modal) {
+            modal.style.display = 'flex';
+            console.log('全範囲スライスモーダルを表示しました');
+        } else {
+            console.error('fullRangeSliceModal要素が見つかりません');
+        }
+    }
+
+    hideFullRangeSliceModal() {
+        const modal = document.getElementById('fullRangeSliceModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    }
+
+    showRemoveSliceModal() {
+        const modal = document.getElementById('removeSliceModal');
+        if (modal) {
+            modal.style.display = 'flex';
+        }
+    }
+
+    hideRemoveSliceModal() {
+        const modal = document.getElementById('removeSliceModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    }
+
+    executeRemoveSlice() {
+        // モーダルを非表示
+        this.hideRemoveSliceModal();
+        
+        // モデル全体を表示する初期状態に戻す
+        this.resetModel();
+        
+        // 天球のテクスチャを復元して天球画像を表示
+        if (this.skyboxSphere && this.skyboxSphere.material) {
+            // 天球のテクスチャを復元
+            if (this.skyboxTexture) {
+                this.skyboxSphere.material.map = this.skyboxTexture;
+                this.skyboxSphere.material.color.setHex(0xffffff); // 色を白に戻す
+                this.skyboxSphere.material.needsUpdate = true;
+            }
+            this.skyboxSphere.visible = true;
+            this.skyboxVisible = true;
+        }
+        if (this.skyboxVisible) {
+            this.scene.background = null; // 天球表示時は背景色を無効
+        }
+        
+        // 天球のチェックボックスの状態を更新
+        const toggleCheckbox = document.getElementById('toggleSkybox');
+        if (toggleCheckbox) {
+            toggleCheckbox.checked = this.skyboxVisible;
+        }
+        
+        // スライス完了時のUIを非表示
+        const sliceViewMode = document.getElementById('sliceViewMode');
+        if (sliceViewMode) {
+            sliceViewMode.style.display = 'none';
+        }
+    }
+
+    executeFullRangeSlice() {
+        console.log('executeFullRangeSlice開始');
+        if (!this.currentModel) {
+            console.warn('executeFullRangeSlice: currentModelが存在しません');
+            return;
+        }
+        
+        // モーダルを非表示
+        this.hideFullRangeSliceModal();
+        
+        // スライスモードでない場合はスライスモードを開始
+        if (!this.trimBoxVisible) {
+            console.log('スライスモードを開始します');
+            this.toggleTrimBox();
+        }
+        
+        // モデル全体を囲むバウンディングボックスを取得
+        // originalGeometryが存在する場合は、それを使ってモデル全体のバウンディングボックスを取得
+        let boundingBox;
+        if (this.originalGeometry) {
+            // 元のジオメトリからバウンディングボックスを計算
+            this.originalGeometry.computeBoundingBox();
+            boundingBox = this.originalGeometry.boundingBox.clone();
+            
+            // モデルの回転を考慮してバウンディングボックスを変換
+            if (this.currentModel && this.currentModel.rotation) {
+                const center = boundingBox.getCenter(new THREE.Vector3());
+                const size = boundingBox.getSize(new THREE.Vector3());
+                
+                // 回転を適用した後のバウンディングボックスを計算
+                const corners = [
+                    new THREE.Vector3(center.x - size.x/2, center.y - size.y/2, center.z - size.z/2),
+                    new THREE.Vector3(center.x + size.x/2, center.y - size.y/2, center.z - size.z/2),
+                    new THREE.Vector3(center.x - size.x/2, center.y + size.y/2, center.z - size.z/2),
+                    new THREE.Vector3(center.x + size.x/2, center.y + size.y/2, center.z - size.z/2),
+                    new THREE.Vector3(center.x - size.x/2, center.y - size.y/2, center.z + size.z/2),
+                    new THREE.Vector3(center.x + size.x/2, center.y - size.y/2, center.z + size.z/2),
+                    new THREE.Vector3(center.x - size.x/2, center.y + size.y/2, center.z + size.z/2),
+                    new THREE.Vector3(center.x + size.x/2, center.y + size.y/2, center.z + size.z/2)
+                ];
+                
+                // 各コーナーに回転を適用
+                corners.forEach(corner => {
+                    corner.applyEuler(this.currentModel.rotation);
+                });
+                
+                // 回転後のバウンディングボックスを再計算
+                boundingBox = new THREE.Box3().setFromPoints(corners);
+            }
+        } else {
+            // originalGeometryがない場合は、現在のモデルから取得
+            this.currentModel.updateMatrixWorld();
+            boundingBox = new THREE.Box3().setFromObject(this.currentModel);
+        }
+        
+        // 既存のトリミングボックスをクリア
+        this.trimBoxManipulator.clear();
+        
+        // カメラ位置を初期位置に戻す
+        if (this.initialCameraPosition && this.initialCameraTarget) {
+            this.camera.position.copy(this.initialCameraPosition);
+            this.controls.target.copy(this.initialCameraTarget);
+            this.controls.update();
+        }
+        
+        // モデル全体を囲む箱を作成（バウンディングボックスを使用するフラグを渡す）
+        this.trimBoxManipulator.create(boundingBox, true); // 第2引数で全体を囲むフラグを渡す
+        
+        // 箱が正しく作成されたか確認
+        if (this.trimBoxManipulator.trimBox) {
+            console.log('箱が作成されました:', {
+                position: this.trimBoxManipulator.trimBox.position,
+                size: {
+                    width: this.trimBoxManipulator.trimBox.geometry.parameters.width,
+                    height: this.trimBoxManipulator.trimBox.geometry.parameters.height,
+                    depth: this.trimBoxManipulator.trimBox.geometry.parameters.depth
+                },
+                visible: this.trimBoxManipulator.trimBox.visible
+            });
+        } else {
+            console.error('箱が作成されませんでした');
+        }
+        
+        this.updatePreview();
+        
+        console.log('全範囲スライス: モデル全体を囲む箱を作成しました', {
+            boundingBox: boundingBox,
+            size: boundingBox.getSize(new THREE.Vector3())
+        });
+    }
+
+    toggleOptionPanel() {
+        const optionPanel = document.getElementById('optionPanel');
+        if (!optionPanel) return;
+        
+        // スライスモードでない場合は何もしない
+        if (!this.trimBoxVisible) return;
+        
+        // 開閉状態を切り替え
+        if (optionPanel.classList.contains('active')) {
+            // 開いている場合は閉じる
+            optionPanel.classList.remove('active');
+            optionPanel.classList.add('closed');
+        } else {
+            // 閉じている場合は開く
+            optionPanel.classList.remove('closed');
+            optionPanel.classList.add('active');
+        }
     }
 
     resetModel() {
@@ -616,9 +1534,58 @@ class PLYViewer {
         this.trimBoxManipulator.clear();
         this.realtimePreview.clearPreview(this.scene);
         this.trimBoxVisible = false;
+
+        // 境界表示モデルをクリア
+        if (this.boundaryDisplayModel) {
+            this.scene.remove(this.boundaryDisplayModel);
+            this.boundaryDisplayModel.geometry.dispose();
+            this.boundaryDisplayModel.material.dispose();
+            this.boundaryDisplayModel = null;
+        }
+
+        // 天球と背景色を元に戻す（テクスチャも復元）
+        if (this.skyboxSphere && this.skyboxSphere.material) {
+            // 天球のテクスチャを復元
+            if (this.skyboxTexture) {
+                this.skyboxSphere.material.map = this.skyboxTexture;
+                this.skyboxSphere.material.color.setHex(0xffffff); // 色を白に戻す
+                this.skyboxSphere.material.needsUpdate = true;
+            }
+            this.skyboxSphere.visible = this.skyboxVisible;
+        }
+        if (this.skyboxVisible) {
+            this.scene.background = null; // 天球表示時は背景色を無効
+        } else {
+            this.scene.background = this.defaultBackgroundColor; // デフォルト背景色
+        }
+
+        // 新しいUI要素の状態をリセット
+        const operationFrame = document.getElementById('operationFrame');
+        if (operationFrame) {
+            operationFrame.classList.remove('active');
+        }
+        const slicingStatus = document.getElementById('slicingStatus');
+        if (slicingStatus) {
+            slicingStatus.style.display = 'none';
+        }
+        const optionPanel = document.getElementById('optionPanel');
+        if (optionPanel) {
+            optionPanel.classList.remove('active');
+            optionPanel.classList.remove('closed');
+            // display: noneは設定しない（編集ボタンから呼ばれた時に再表示されるため）
+        }
+        const sliceButton = document.getElementById('sliceButton');
+        if (sliceButton) {
+            sliceButton.classList.remove('active');
+            // アイコンの色を更新
+            this.updateSliceButtonIconColor();
+        }
         
+        // 旧UI要素の更新（後方互換性）
         const toggleButton = document.getElementById('toggleTrimBox');
-        toggleButton.textContent = 'スライス';
+        if (toggleButton) {
+            toggleButton.textContent = 'スライス';
+        }
         
         this.updateUI();
     }
@@ -629,10 +1596,15 @@ class PLYViewer {
         const currentCount = this.currentModel ? 
             this.currentModel.geometry.attributes.position.count : 0;
         
-        document.getElementById('originalVertexCount').textContent = 
-            originalCount.toLocaleString();
-        document.getElementById('currentVertexCount').textContent = 
-            currentCount.toLocaleString();
+        const originalVertexCountEl = document.getElementById('originalVertexCount');
+        if (originalVertexCountEl) {
+            originalVertexCountEl.textContent = originalCount.toLocaleString();
+        }
+        
+        const currentVertexCountEl = document.getElementById('currentVertexCount');
+        if (currentVertexCountEl) {
+            currentVertexCountEl.textContent = currentCount.toLocaleString();
+        }
     }
 
     updateTrimBoxInfo() {
@@ -642,12 +1614,20 @@ class PLYViewer {
         const min = trimBoxBounds.min;
         const max = trimBoxBounds.max;
         
-        document.getElementById('trimBoxX').textContent = 
-            `${min.x.toFixed(2)} - ${max.x.toFixed(2)}`;
-        document.getElementById('trimBoxY').textContent = 
-            `${min.y.toFixed(2)} - ${max.y.toFixed(2)}`;
-        document.getElementById('trimBoxZ').textContent = 
-            `${min.z.toFixed(2)} - ${max.z.toFixed(2)}`;
+        const trimBoxXEl = document.getElementById('trimBoxX');
+        if (trimBoxXEl) {
+            trimBoxXEl.textContent = `${min.x.toFixed(2)} - ${max.x.toFixed(2)}`;
+        }
+        
+        const trimBoxYEl = document.getElementById('trimBoxY');
+        if (trimBoxYEl) {
+            trimBoxYEl.textContent = `${min.y.toFixed(2)} - ${max.y.toFixed(2)}`;
+        }
+        
+        const trimBoxZEl = document.getElementById('trimBoxZ');
+        if (trimBoxZEl) {
+            trimBoxZEl.textContent = `${min.z.toFixed(2)} - ${max.z.toFixed(2)}`;
+        }
         
         // ハンドルサイズ（ピクセル）を更新
         this.updateHandlePixelSize();
@@ -728,11 +1708,41 @@ class PLYViewer {
     enableControls() {
         // currentModelが存在する場合のみコントロールを有効化
         if (this.currentModel) {
-            document.getElementById('toggleTrimBox').disabled = false;
-            document.getElementById('toggleOutsideView').disabled = false;
-            document.getElementById('executeTrim').disabled = false;
-            document.getElementById('resetModel').disabled = false;
-            document.getElementById('resetCamera').disabled = false;
+            // 新しいUI要素の有効化
+            const toggleTrimBoxNew = document.getElementById('toggleTrimBoxNew');
+            if (toggleTrimBoxNew) {
+                toggleTrimBoxNew.disabled = false;
+            }
+            const toggleOutsideViewNew = document.getElementById('toggleOutsideViewNew');
+            if (toggleOutsideViewNew) {
+                toggleOutsideViewNew.disabled = false;
+            }
+            const fullRangeSliceBtn = document.getElementById('fullRangeSliceBtn');
+            if (fullRangeSliceBtn) {
+                fullRangeSliceBtn.disabled = false;
+            }
+            
+            // 旧UI要素の有効化（後方互換性）
+            const toggleTrimBox = document.getElementById('toggleTrimBox');
+            if (toggleTrimBox) {
+                toggleTrimBox.disabled = false;
+            }
+            const toggleOutsideView = document.getElementById('toggleOutsideView');
+            if (toggleOutsideView) {
+                toggleOutsideView.disabled = false;
+            }
+            const executeTrim = document.getElementById('executeTrim');
+            if (executeTrim) {
+                executeTrim.disabled = false;
+            }
+            const resetModel = document.getElementById('resetModel');
+            if (resetModel) {
+                resetModel.disabled = false;
+            }
+            const resetCamera = document.getElementById('resetCamera');
+            if (resetCamera) {
+                resetCamera.disabled = false;
+            }
         }
     }
 
@@ -740,8 +1750,18 @@ class PLYViewer {
         if (!this.trimBoxVisible) return;
         
         const isVisible = this.realtimePreview.toggleOutsideVisibility();
+        
+        // 新しいUI要素の更新
+        const toggleOutsideViewNew = document.getElementById('toggleOutsideViewNew');
+        if (toggleOutsideViewNew) {
+            toggleOutsideViewNew.checked = isVisible;
+        }
+        
+        // 旧UI要素の更新（後方互換性）
         const toggleButton = document.getElementById('toggleOutsideView');
-        toggleButton.textContent = isVisible ? '箱外モデル非表示' : '箱外モデル表示';
+        if (toggleButton) {
+            toggleButton.textContent = isVisible ? '箱外モデル非表示' : '箱外モデル表示';
+        }
     }
 
     setOutsideOpacity(opacity) {
@@ -862,6 +1882,276 @@ class PLYViewer {
         });
     }
 
+    switchMode(mode) {
+        if (mode === this.currentMode) return;
+        
+        this.currentMode = mode;
+        
+        // UIの状態を更新
+        const mode3D = document.getElementById('mode3D');
+        const modeWalkThrough = document.getElementById('modeWalkThrough');
+        
+        if (mode3D && modeWalkThrough) {
+            const modeSwitch = document.getElementById('modeSwitch');
+            
+            let activeIndex = 0; // デフォルトは3D
+            if (mode === '3d') {
+                mode3D.classList.add('active');
+                modeWalkThrough.classList.remove('active');
+                activeIndex = 0;
+            } else if (mode === 'walkthrough') {
+                mode3D.classList.remove('active');
+                modeWalkThrough.classList.add('active');
+                activeIndex = 1;
+            }
+            
+            // スライド背景の位置を更新
+            if (modeSwitch) {
+                modeSwitch.setAttribute('data-active-index', activeIndex.toString());
+            }
+            
+            // アイコンの色を更新
+            this.updateModeSwitchIconColors();
+        }
+        
+        // モードに応じた処理を実装
+        // 3Dモード: 通常のOrbitControls
+        // ウォークスルーモード: FirstPersonControlsなどに変更（必要に応じて実装）
+        console.log('モード切り替え:', mode);
+        
+        // 将来的にカメラコントロールを変更する場合はここで実装
+        // 現時点ではUIの切り替えのみ
+    }
+
+    switchViewMode(viewMode) {
+        if (viewMode === this.currentViewMode) return;
+        
+        this.currentViewMode = viewMode;
+        
+        // UIの状態を更新
+        const orbitTab = document.getElementById('orbitTab');
+        const lookTab = document.getElementById('lookTab');
+        const thirdTab = document.getElementById('thirdTab');
+        
+        if (orbitTab && lookTab && thirdTab) {
+            const viewControlTabs = document.getElementById('viewControlTabs');
+            
+            // すべてのタブからactiveクラスを削除
+            orbitTab.classList.remove('active');
+            lookTab.classList.remove('active');
+            thirdTab.classList.remove('active');
+            
+            // 選択されたタブにactiveクラスを追加とインデックスを設定
+            let activeIndex = 1; // デフォルトはlook
+            if (viewMode === 'orbit') {
+                orbitTab.classList.add('active');
+                activeIndex = 0;
+            } else if (viewMode === 'look') {
+                lookTab.classList.add('active');
+                activeIndex = 1;
+            } else if (viewMode === 'third') {
+                thirdTab.classList.add('active');
+                activeIndex = 2;
+            }
+            
+            // スライド背景の位置を更新
+            if (viewControlTabs) {
+                viewControlTabs.setAttribute('data-active-index', activeIndex.toString());
+            }
+            
+            // アイコンの色を更新
+            this.updateViewControlIconColors();
+        }
+        
+        // ビューモードに応じた処理を実装
+        // Orbit: 通常のOrbitControls
+        // Look: カメラが常にモデルを見る
+        // Third: サードパーソンビュー
+        console.log('ビューモード切り替え:', viewMode);
+        
+        // 将来的にカメラコントロールを変更する場合はここで実装
+        // 現時点ではUIの切り替えのみ
+    }
+
+    updateViewControlIconColors() {
+        const inactiveColor = '#5A5D62';
+        const activeColor = '#212224';
+        
+        const orbitTab = document.getElementById('orbitTab');
+        const lookTab = document.getElementById('lookTab');
+        const thirdTab = document.getElementById('thirdTab');
+        
+        const tabs = [
+            { element: orbitTab, icon: 'assets/path.svg' },
+            { element: lookTab, icon: 'assets/look.svg' },
+            { element: thirdTab, icon: 'assets/fly.svg' }
+        ];
+        
+        tabs.forEach(tab => {
+            if (!tab.element) return;
+            
+            const img = tab.element.querySelector('img');
+            if (!img) return;
+            
+            const isActive = tab.element.classList.contains('active');
+            const targetColor = isActive ? activeColor : inactiveColor;
+            
+            // 元のSVGファイルのパスを取得（データURLの場合は元のパスを使用）
+            let svgPath = img.src;
+            if (svgPath.startsWith('blob:')) {
+                // データURLの場合は元のパスを使用
+                svgPath = tab.icon;
+            } else if (!svgPath.includes('assets/')) {
+                // パスが相対パスでない場合は元のパスを使用
+                svgPath = tab.icon;
+            }
+            
+            // SVGを読み込んでfill属性を変更
+            fetch(svgPath)
+                .then(response => response.text())
+                .then(svgText => {
+                    const parser = new DOMParser();
+                    const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
+                    const svgElement = svgDoc.querySelector('svg');
+                    
+                    if (svgElement) {
+                        // すべてのpath要素のfill属性を変更
+                        const paths = svgElement.querySelectorAll('path');
+                        paths.forEach(path => {
+                            path.setAttribute('fill', targetColor);
+                        });
+                        
+                        // SVGをデータURLに変換
+                        const serializer = new XMLSerializer();
+                        const svgString = serializer.serializeToString(svgElement);
+                        const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+                        const url = URL.createObjectURL(svgBlob);
+                        
+                        img.src = url;
+                    }
+                })
+                .catch(error => {
+                    console.warn('SVG色変更エラー:', error);
+                });
+        });
+    }
+
+    updateModeSwitchIconColors() {
+        const inactiveColor = '#5A5D62';
+        const activeColor = '#212224';
+        
+        const mode3D = document.getElementById('mode3D');
+        const modeWalkThrough = document.getElementById('modeWalkThrough');
+        
+        const modes = [
+            { element: mode3D, icon: 'assets/3dMode.svg' },
+            { element: modeWalkThrough, icon: 'assets/2dMode.svg' }
+        ];
+        
+        modes.forEach(mode => {
+            if (!mode.element) return;
+            
+            const img = mode.element.querySelector('img');
+            if (!img) return;
+            
+            const isActive = mode.element.classList.contains('active');
+            const targetColor = isActive ? activeColor : inactiveColor;
+            
+            // 元のSVGファイルのパスを取得（データURLの場合は元のパスを使用）
+            let svgPath = img.src;
+            if (svgPath.startsWith('blob:')) {
+                // データURLの場合は元のパスを使用
+                svgPath = mode.icon;
+            } else if (!svgPath.includes('assets/')) {
+                // パスが相対パスでない場合は元のパスを使用
+                svgPath = mode.icon;
+            }
+            
+            // SVGを読み込んでfill属性を変更
+            fetch(svgPath)
+                .then(response => response.text())
+                .then(svgText => {
+                    const parser = new DOMParser();
+                    const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
+                    const svgElement = svgDoc.querySelector('svg');
+                    
+                    if (svgElement) {
+                        // すべてのpath要素のfill属性を変更
+                        const paths = svgElement.querySelectorAll('path');
+                        paths.forEach(path => {
+                            path.setAttribute('fill', targetColor);
+                        });
+                        
+                        // SVGをデータURLに変換
+                        const serializer = new XMLSerializer();
+                        const svgString = serializer.serializeToString(svgElement);
+                        const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+                        const url = URL.createObjectURL(svgBlob);
+                        
+                        img.src = url;
+                    }
+                })
+                .catch(error => {
+                    console.warn('SVG色変更エラー:', error);
+                });
+        });
+    }
+
+    updateSliceButtonIconColor() {
+        const inactiveColor = '#DCDFE5';
+        const activeColor = '#212224';
+        
+        const sliceButton = document.getElementById('sliceButton');
+        if (!sliceButton) return;
+        
+        const toggleTrimBoxNew = document.getElementById('toggleTrimBoxNew');
+        if (!toggleTrimBoxNew) return;
+        
+        const img = toggleTrimBoxNew.querySelector('img');
+        if (!img) return;
+        
+        const isActive = sliceButton.classList.contains('active');
+        const targetColor = isActive ? activeColor : inactiveColor;
+        
+        // 元のSVGファイルのパスを取得（データURLの場合は元のパスを使用）
+        let svgPath = img.src;
+        if (svgPath.startsWith('blob:')) {
+            // データURLの場合は元のパスを使用
+            svgPath = 'assets/sliceIcon.svg';
+        } else if (!svgPath.includes('assets/')) {
+            // パスが相対パスでない場合は元のパスを使用
+            svgPath = 'assets/sliceIcon.svg';
+        }
+        
+        // SVGを読み込んでfill属性を変更
+        fetch(svgPath)
+            .then(response => response.text())
+            .then(svgText => {
+                const parser = new DOMParser();
+                const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
+                const svgElement = svgDoc.querySelector('svg');
+                
+                if (svgElement) {
+                    // すべてのpath要素のfill属性を変更
+                    const paths = svgElement.querySelectorAll('path');
+                    paths.forEach(path => {
+                        path.setAttribute('fill', targetColor);
+                    });
+                    
+                    // SVGをデータURLに変換
+                    const serializer = new XMLSerializer();
+                    const svgString = serializer.serializeToString(svgElement);
+                    const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+                    const url = URL.createObjectURL(svgBlob);
+                    
+                    img.src = url;
+                }
+            })
+            .catch(error => {
+                console.warn('スライスボタンSVG色変更エラー:', error);
+            });
+    }
+
     // 天球を初期化
     initSkybox() {
         const loader = new THREE.TextureLoader();
@@ -885,6 +2175,9 @@ class PLYViewer {
 
     // 天球を作成
     createSkybox(texture) {
+        // テクスチャを保持
+        this.skyboxTexture = texture;
+        
         // 球体ジオメトリを作成（内側から見るため、スケールをマイナスにする）
         const geometry = new THREE.SphereGeometry(500, 60, 40);
         geometry.scale(-1, 1, 1); // X軸を反転して内側から見えるようにする
@@ -943,6 +2236,90 @@ class PLYViewer {
         }
         
         console.log('天球表示状態:', this.skyboxVisible);
+    }
+
+    // スライスモード中の天球表示を切り替え（OFF: グレー、ON: 天球画像）
+    toggleSkyboxInSliceMode(checked) {
+        // スライスモード中でない場合は何もしない
+        if (!this.trimBoxVisible) {
+            console.warn('スライスモード中ではありません');
+            return;
+        }
+
+        // 天球は常に表示（ON/OFFで表示方法を切り替え）
+        if (this.skyboxSphere) {
+            this.skyboxSphere.visible = true;
+            
+            // 天球のマテリアルを更新
+            if (this.skyboxSphere.material) {
+                if (checked) {
+                    // ON: 天球画像を使用
+                    if (this.skyboxTexture) {
+                        this.skyboxSphere.material.map = this.skyboxTexture;
+                        this.skyboxSphere.material.color.setHex(0xffffff); // 色を白に戻す
+                    }
+                } else {
+                    // OFF: グレー色を使用
+                    this.skyboxSphere.material.color.setHex(0x26282B); // グレー色
+                    this.skyboxSphere.material.map = null; // テクスチャを無効化
+                }
+                this.skyboxSphere.material.needsUpdate = true;
+            }
+        }
+
+        // 背景色も切り替え
+        this.scene.background = null; // 天球表示時は背景色を無効
+
+        // チェックボックスの状態を更新
+        const toggleCheckbox = document.getElementById('toggleSkyboxSlice');
+        if (toggleCheckbox) {
+            toggleCheckbox.checked = checked;
+        }
+
+        console.log('スライスモード中の天球表示方法:', checked ? '天球画像' : 'グレー');
+    }
+
+    changeArrowType(type) {
+        if (!this.trimBoxManipulator) {
+            return;
+        }
+        
+        this.trimBoxManipulator.setArrowType(type);
+        
+        // セレクトボックスの値を更新
+        const arrowTypeSelect = document.getElementById('arrowTypeSelect');
+        if (arrowTypeSelect) {
+            arrowTypeSelect.value = type;
+        }
+        
+        // arrow_cornクリック可能領域サイズ調整パネルの表示/非表示を切り替え
+        const clickablePanel = document.getElementById('arrowCornClickablePanel');
+        if (clickablePanel) {
+            clickablePanel.style.display = type === 'arrow_corn' ? 'flex' : 'none';
+        }
+        
+        console.log('矢印タイプ変更:', type);
+    }
+
+    setArrowCornClickableVisible(visible) {
+        if (!this.trimBoxManipulator) {
+            return;
+        }
+        
+        // arrow_cornでない場合は何もしない
+        if (this.trimBoxManipulator.arrowType !== 'arrow_corn') {
+            return;
+        }
+        
+        this.trimBoxManipulator.setArrowCornClickableVisible(visible);
+        
+        // トグルの値を更新
+        const toggle = document.getElementById('toggleArrowCornClickable');
+        if (toggle) {
+            toggle.checked = visible;
+        }
+        
+        console.log('arrow_cornクリック可能領域表示状態:', visible);
     }
 
     setupOrientationEventListeners() {
@@ -1176,14 +2553,16 @@ class PLYViewer {
         
         if (this.trimBoxVisible) {
             this.updateTrimBoxInfo();
-            
+
             if (this.trimBoxManipulator.isDragging) {
                 this.updatePreview();
             }
-            
+
             // 矢印を常にカメラに向ける
             if (this.trimBoxManipulator) {
                 this.trimBoxManipulator.updateArrowOrientations();
+                // ハンドルのスケールをカメラ距離に応じて更新
+                this.trimBoxManipulator.updateHandleScales();
             }
         }
         

@@ -59,23 +59,54 @@ class TrimBoxManipulator {
         this.leaderRadius = this.leaderThickness * 0.01; // 0.03
         
         // カスタム矢印関連
-        this.customArrowModel = null;    // カスタムOBJモデル
+        this.customArrowModel = null;    // カスタムOBJモデル（arrow.obj）
+        this.customArrowCornModel = null; // カスタムOBJモデル（arrow_corn.obj）
         this.customArrowScale = 0.150;    // カスタム矢印のスケール
         this.customArrowLoaded = false;  // カスタム矢印が読み込まれたかどうか
+        this.customArrowCornLoaded = false; // arrow_cornが読み込まれたかどうか
+        this.arrowType = 'arrow'; // 現在の矢印タイプ: 'arrow' または 'arrow_corn'
+        
+        // arrow_corn専用の回転オフセット（度単位、各面ごとにXYZ軸）
+        // キー: 'x+', 'x-', 'y+', 'y-', 'z+', 'z-'
+        // デフォルト: すべての面のZ軸を90度に設定
+        this.arrowCornRotations = {
+            'x+': { x: 0, y: 0, z: 90 },
+            'x-': { x: 0, y: 0, z: 90 },
+            'y+': { x: 0, y: 0, z: 90 },
+            'y-': { x: 0, y: 0, z: 90 },
+            'z+': { x: 0, y: 0, z: 90 },
+            'z-': { x: 0, y: 0, z: 90 }
+        };
+        
+        // arrow_corn専用の位置オフセット（すべての矢印を同じ距離だけ外側に移動）
+        this.arrowCornPositionOffset = 1.0; // デフォルトは1.0
+        
+        // arrow_corn専用のクリック可能領域のマージン（各軸ごとの拡張率）
+        this.arrowCornClickableMargin = {
+            x: 0.5,  // X軸方向のマージン（デフォルト50%拡張）
+            y: 7.0, // Y軸方向のマージン（デフォルト1000%拡張）
+            z: 7.0  // Z軸方向のマージン（デフォルト1000%拡張）
+        };
+        
+        // arrow_corn専用のクリック可能領域の表示状態
+        this.arrowCornClickableVisible = true; // デフォルトは表示
         
         // 回転ハンドル関連
         this.rotaryHandleEnableModel = null;    // デフォルト状態の回転ハンドルOBJモデル
         this.rotaryHandleActiveModel = null;   // アクティブ状態の回転ハンドルOBJモデル
-        this.rotaryHandleScale = 0.22;        // 回転ハンドルのスケール（デフォルト220%）
+        this.rotaryHandleScale = 0.05;        // 回転ハンドルのスケール（デフォルト220%）
         this.rotaryHandleLoaded = false;       // 回転ハンドルが読み込まれたかどうか
-        this.activeHandlePositionOffset = new THREE.Vector3(0.050, -0.050, 0.000); // アクティブハンドルの位置オフセット
+        this.activeHandlePositionOffset = new THREE.Vector3(0.070, -0.070, 0.000); // アクティブハンドルの位置オフセット
         this.rotaryHandleHitboxRadius = 0.15;  // 回転ハンドルの当たり判定用球体の半径（見た目を変えずにクリック範囲を広げる）
         
         // Z軸矢印の回転設定
         this.zArrowRotationEnabled = true;   // Z軸矢印がカメラに向くか
         this.zArrowRotationAxis = 'y';       // Z軸矢印の回転軸 ('x', 'y', 'z')
 
-        
+        // 面ハイライト用
+        this.faceHighlight = null; // ハイライト表示用の面メッシュ
+        this.edgeHighlights = []; // ハイライト表示用の辺ライン配列
+
         this.raycaster = new THREE.Raycaster();
         // Lineのレイキャスト判定を厳密にする
         this.raycaster.params.Line.threshold = 0.05; // デフォルト: 1
@@ -84,6 +115,7 @@ class TrimBoxManipulator {
         
         this.setupEventListeners();
         this.loadCustomArrowModel(); // カスタム矢印モデルを読み込み
+        this.loadCustomArrowCornModel(); // arrow_cornモデルを読み込み
         this.loadRotaryHandleModels(); // 回転ハンドルモデルを読み込み
     }
 
@@ -106,6 +138,28 @@ class TrimBoxManipulator {
         } catch (error) {
             console.error('カスタム矢印モデルの読み込みに失敗:', error);
             this.customArrowLoaded = false;
+        }
+    }
+
+    async loadCustomArrowCornModel() {
+        try {
+            const loader = new OBJLoader();
+            this.customArrowCornModel = await new Promise((resolve, reject) => {
+                loader.load('OBJ/arrow_corn.obj', resolve, undefined, reject);
+            });
+            
+            // モデルのスケールとマテリアルを設定
+            this.customArrowCornModel.traverse((child) => {
+                if (child.isMesh) {
+                    child.material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+                }
+            });
+            
+            this.customArrowCornLoaded = true;
+            console.log('カスタム矢印モデル (arrow_corn.obj) の読み込み完了');
+        } catch (error) {
+            console.error('arrow_cornモデルの読み込みに失敗:', error);
+            this.customArrowCornLoaded = false;
         }
     }
 
@@ -174,7 +228,13 @@ class TrimBoxManipulator {
         });
     }
 
-    create(boundingBox) {
+    create(boundingBox, useFullRange = false) {
+        // 全範囲スライスの場合、既存の箱の高さを保存
+        let existingBoxHeight = null;
+        if (useFullRange && this.trimBox && this.trimBox.geometry) {
+            existingBoxHeight = this.trimBox.geometry.parameters.height;
+        }
+        
         this.clear();
         
         // アクティブなハンドル状態をリセット
@@ -185,29 +245,52 @@ class TrimBoxManipulator {
         
         // モデルの中心を取得（サイズ計算用）
         const modelCenter = boundingBox.getCenter(new THREE.Vector3());
+        const modelSize = boundingBox.getSize(new THREE.Vector3());
         
-        // 箱を配置する位置を決定（カメラターゲット位置より手前）
-        const cameraDirection = new THREE.Vector3();
-        this.camera.getWorldDirection(cameraDirection);
+        let boxCenter;
+        let boxWidth, boxHeight, boxDepth;
         
-        // カメラからターゲットまでの距離の70%の位置に配置（手前に）
-        const targetDistance = this.camera.position.distanceTo(this.controls.target);
-        const boxDistance = targetDistance * 0.7;
-        const boxCenter = this.camera.position.clone().add(cameraDirection.multiplyScalar(boxDistance));
+        if (useFullRange) {
+            // 全範囲スライスの場合：バウンディングボックスのサイズと位置を使用
+            boxCenter = modelCenter.clone();
+            
+            // X方向とZ方向はモデル全体を囲むように広げる（5%のマージン）
+            boxWidth = modelSize.x * 1.05;
+            boxDepth = modelSize.z * 1.05;
+            
+            // Y方向（高さ）は既存の箱があればそれを保持、なければモデルのY方向のサイズを使用
+            if (existingBoxHeight !== null) {
+                // 既存の箱のY方向のサイズを保持
+                boxHeight = existingBoxHeight;
+            } else {
+                // 既存の箱がない場合はモデルのY方向のサイズを使用
+                boxHeight = modelSize.y * 1.05;
+            }
+        } else {
+            // 通常のスライスモード：画面サイズに基づいて箱サイズを計算
+            // 箱を配置する位置を決定（カメラターゲット位置より手前）
+            const cameraDirection = new THREE.Vector3();
+            this.camera.getWorldDirection(cameraDirection);
+            
+            // カメラからターゲットまでの距離の70%の位置に配置（手前に）
+            const targetDistance = this.camera.position.distanceTo(this.controls.target);
+            const boxDistance = targetDistance * 0.7;
+            boxCenter = this.camera.position.clone().add(cameraDirection.multiplyScalar(boxDistance));
+            
+            // Y座標はモデルのY座標中央を使用
+            boxCenter.y = modelCenter.y;
+            
+            // 初期表示時のみ画面サイズに基づいて箱サイズを計算
+            // カメラからターゲット位置までの距離を使用
+            const cameraDistance = this.camera.position.distanceTo(boxCenter);
+            const fov = this.camera.fov * (Math.PI / 180);
+            
+            // 画面の30%程度のサイズになるように計算（立方体）
+            const viewportHeight = 2 * Math.tan(fov / 2) * cameraDistance;
+            boxWidth = boxHeight = boxDepth = viewportHeight * 0.3;
+        }
         
-        // Y座標はモデルのY座標中央を使用
-        boxCenter.y = modelCenter.y;
-        
-        // 初期表示時のみ画面サイズに基づいて箱サイズを計算
-        // カメラからターゲット位置までの距離を使用
-        const cameraDistance = this.camera.position.distanceTo(boxCenter);
-        const fov = this.camera.fov * (Math.PI / 180);
-        
-        // 画面の30%程度のサイズになるように計算
-        const viewportHeight = 2 * Math.tan(fov / 2) * cameraDistance;
-        const boxSize = viewportHeight * 0.3;
-        
-        const geometry = new THREE.BoxGeometry(boxSize, boxSize, boxSize);
+        const geometry = new THREE.BoxGeometry(boxWidth, boxHeight, boxDepth);
         const material = new THREE.MeshBasicMaterial({
             color: this.boxColor,
             transparent: true,
@@ -235,12 +318,20 @@ class TrimBoxManipulator {
 
         
         // 初期の3D空間でのサイズと位置を保存
-        this.fixedBoxSize = boxSize;
+        // 直方体の場合は最大のサイズを使用（後方互換性のため）
+        this.fixedBoxSize = useFullRange ? Math.max(boxWidth, boxHeight, boxDepth) : boxWidth;
         this.targetPosition = boxCenter.clone();
         this.currentScale = 1.0;
         
         this.createHandles();
-        console.log('新しいマニピュレーターを作成:', { fixedBoxSize: this.fixedBoxSize, position: this.targetPosition });
+        console.log('新しいマニピュレーターを作成:', { 
+            fixedBoxSize: this.fixedBoxSize, 
+            position: this.targetPosition,
+            width: boxWidth,
+            height: boxHeight,
+            depth: boxDepth,
+            useFullRange: useFullRange
+        });
     }
 
     createHandles() {
@@ -289,7 +380,7 @@ class TrimBoxManipulator {
         ];
         
         // 面ハンドル（6つの面、初期は非表示）- 箱の外側に少し出して配置
-        const offset = this.arrowOffset; // 箱から離す距離（動的設定）
+        const offset = this.getArrowPlacementOffset(); // 箱から離す距離（動的設定、矢印の基準オフセットを補正）
         const facePositions = [
             { pos: new THREE.Vector3(max.x + offset, center.y, center.z), type: 'face', axis: 'x', direction: 1 },
             { pos: new THREE.Vector3(min.x - offset, center.y, center.z), type: 'face', axis: 'x', direction: -1 },
@@ -439,14 +530,24 @@ class TrimBoxManipulator {
     }
 
     createArrowGeometry(faceData = null) {
-        // カスタム矢印モデルが読み込まれていない場合はエラー
-        if (!this.customArrowModel || !this.customArrowLoaded) {
-            console.error('カスタム矢印モデルが読み込まれていません');
-            return new THREE.Group(); // 空のグループを返す
+        // 選択された矢印モデルを取得
+        let arrowModel = null;
+        if (this.arrowType === 'arrow_corn') {
+            if (!this.customArrowCornModel || !this.customArrowCornLoaded) {
+                console.error('arrow_cornモデルが読み込まれていません');
+                return new THREE.Group(); // 空のグループを返す
+            }
+            arrowModel = this.customArrowCornModel;
+        } else {
+            if (!this.customArrowModel || !this.customArrowLoaded) {
+                console.error('カスタム矢印モデルが読み込まれていません');
+                return new THREE.Group(); // 空のグループを返す
+            }
+            arrowModel = this.customArrowModel;
         }
         
         const arrowGroup = new THREE.Group();
-        const customArrow = this.customArrowModel.clone();
+        const customArrow = arrowModel.clone();
         
         // スケールを適用
         customArrow.scale.set(this.customArrowScale, this.customArrowScale, this.customArrowScale);
@@ -462,24 +563,60 @@ class TrimBoxManipulator {
         
         arrowGroup.add(customArrow);
         
-        // 透明なクリック可能な領域を追加（矢印より大きく）
-        const clickableRadius = this.customArrowScale * 3.0; // 矢印の3倍の半径
-        const clickableHeight = this.customArrowScale * 10.0; // 矢印の10倍の高さ
-        const clickableGeometry = new THREE.CylinderGeometry(clickableRadius, clickableRadius, clickableHeight, 8);
-        const clickableMaterial = new THREE.MeshBasicMaterial({
-            color: 0xffffff,
-            transparent: true,
-            opacity: 0, // 完全に透明
-            depthTest: true,
-            depthWrite: false
-        });
-        const clickableMesh = new THREE.Mesh(clickableGeometry, clickableMaterial);
-        clickableMesh.renderOrder = 99; // 矢印本体より少し低い順序
-        
-        // クリック可能領域にもuserDataを設定（レイキャスト用）
-        clickableMesh.userData.isClickableArea = true;
-        
-        arrowGroup.add(clickableMesh);
+        // クリック可能な領域を追加
+        if (this.arrowType === 'arrow_corn') {
+            // arrow_cornの場合: 直方体のクリック可能領域を作成（透明度50%）
+            // arrow_cornモデルのバウンディングボックスを取得
+            const box = new THREE.Box3().setFromObject(customArrow);
+            const size = box.getSize(new THREE.Vector3());
+            const center = box.getCenter(new THREE.Vector3());
+            
+            // マージンを追加してクリックしやすくする（各軸ごとに調整可能）
+            const marginX = this.arrowCornClickableMargin.x;
+            const marginY = this.arrowCornClickableMargin.y;
+            const marginZ = this.arrowCornClickableMargin.z;
+            const clickableWidth = size.x * (1 + marginX);
+            const clickableHeight = size.y * (1 + marginY);
+            const clickableDepth = size.z * (1 + marginZ);
+            
+            const clickableGeometry = new THREE.BoxGeometry(clickableWidth, clickableHeight, clickableDepth);
+            const clickableMaterial = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: this.arrowCornClickableVisible ? 0.5 : 0, // 表示状態に応じて透明度を変更
+                depthTest: true,
+                depthWrite: false,
+                visible: true // レイキャスト用に常にvisibleをtrueに（見た目はopacityで制御）
+            });
+            const clickableMesh = new THREE.Mesh(clickableGeometry, clickableMaterial);
+            clickableMesh.position.copy(center); // モデルの中心に配置
+            clickableMesh.renderOrder = 99; // 矢印本体より少し低い順序
+            
+            // クリック可能領域にもuserDataを設定（レイキャスト用）
+            clickableMesh.userData.isClickableArea = true;
+            clickableMesh.userData.isArrowCornClickable = true; // arrow_corn用のクリック可能領域であることを示す
+            
+            arrowGroup.add(clickableMesh);
+        } else {
+            // arrowの場合: 円柱のクリック可能領域（従来通り）
+            const clickableRadius = this.customArrowScale * 3.0; // 矢印の3倍の半径
+            const clickableHeight = this.customArrowScale * 10.0; // 矢印の10倍の高さ
+            const clickableGeometry = new THREE.CylinderGeometry(clickableRadius, clickableRadius, clickableHeight, 8);
+            const clickableMaterial = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0, // 完全に透明
+                depthTest: true,
+                depthWrite: false
+            });
+            const clickableMesh = new THREE.Mesh(clickableGeometry, clickableMaterial);
+            clickableMesh.renderOrder = 99; // 矢印本体より少し低い順序
+            
+            // クリック可能領域にもuserDataを設定（レイキャスト用）
+            clickableMesh.userData.isClickableArea = true;
+            
+            arrowGroup.add(clickableMesh);
+        }
         
         return arrowGroup;
     }
@@ -609,6 +746,18 @@ class TrimBoxManipulator {
                     }
                 }
                 break;
+        }
+        
+        // arrow_cornの場合のみ、追加の回転オフセットを適用
+        if (this.arrowType === 'arrow_corn') {
+            const faceKey = `${axis}${direction > 0 ? '+' : '-'}`;
+            const rotationOffset = this.arrowCornRotations[faceKey];
+            if (rotationOffset) {
+                // 度をラジアンに変換して追加
+                handle.rotation.x += rotationOffset.x * (Math.PI / 180);
+                handle.rotation.y += rotationOffset.y * (Math.PI / 180);
+                handle.rotation.z += rotationOffset.z * (Math.PI / 180);
+            }
         }
     }
     
@@ -808,6 +957,10 @@ class TrimBoxManipulator {
             // 面ハンドルをクリックした場合はその面を選択（他の矢印は消す）
             if (userData.type === 'face') {
                 this.selectFace(this.activeHandle);
+
+                // 対応する面をハイライト表示
+                this.highlightFace(this.activeHandle);
+
                 // 円錐（Mesh）の場合は直接material.colorを変更
                 if (this.activeHandle.material) {
                     this.activeHandle.material.color.setHex(0x00dfff);
@@ -980,11 +1133,15 @@ class TrimBoxManipulator {
     deselectFace() {
         if (this.selectedFace) {
             this.selectedFace.visible = false;
-            
 
-            
+            // 面のハイライトもクリア
+            this.clearFaceHighlight();
+
+            // 辺のハイライトもクリア
+            this.clearEdgeHighlights();
+
             this.selectedFace = null;
-            
+
             console.log('面選択を解除');
         }
         // ホバー矢印を消去
@@ -1169,7 +1326,13 @@ class TrimBoxManipulator {
         this.isLongPressActive = false;
         this.clickedFaceIntersection = null;
         this.renderer.domElement.style.cursor = 'default';
-        
+
+        // 面のハイライトをクリア
+        this.clearFaceHighlight();
+
+        // 辺のハイライトをクリア
+        this.clearEdgeHighlights();
+
         // ハンドル操作終了時にカメラコントロールを必ず再有効化
         this.enableOrbitControls();
         this.hideTrimmingInfo();
@@ -1886,7 +2049,7 @@ class TrimBoxManipulator {
         this.faceHandles.forEach(handle => {
             const userData = handle.userData;
             let localPos = new THREE.Vector3();
-            const offset = this.arrowOffset; // 箱から離す距離（クラスプロパティを使用）
+            const offset = this.getArrowPlacementOffset(); // 箱から離す距離（基準オフセット補正済み）
             
             switch (userData.axis) {
                 case 'x':
@@ -2265,12 +2428,229 @@ class TrimBoxManipulator {
         console.log(`アクティブハンドル位置オフセット更新:`, this.activeHandlePositionOffset);
     }
 
+    // 面のハイライトを表示する
+    highlightFace(faceHandle) {
+        if (!this.trimBox || !faceHandle) return;
+
+        // 既存のハイライトをクリア
+        this.clearFaceHighlight();
+
+        const userData = faceHandle.userData;
+        const axis = userData.axis;
+        const direction = userData.direction;
+
+        // 箱のサイズを取得
+        const boxSize = new THREE.Vector3();
+        this.trimBox.geometry.computeBoundingBox();
+        const bbox = this.trimBox.geometry.boundingBox;
+        boxSize.x = bbox.max.x - bbox.min.x;
+        boxSize.y = bbox.max.y - bbox.min.y;
+        boxSize.z = bbox.max.z - bbox.min.z;
+
+        // ハイライト用の面ジオメトリを作成
+        let geometry, position, rotation;
+        const offset = 0.01; // 箱の面より少し外側に配置
+
+        if (axis === 'x') {
+            geometry = new THREE.PlaneGeometry(boxSize.z, boxSize.y);
+            position = new THREE.Vector3(direction * (boxSize.x / 2 + offset), 0, 0);
+            rotation = new THREE.Euler(0, direction > 0 ? -Math.PI / 2 : Math.PI / 2, 0);
+        } else if (axis === 'y') {
+            geometry = new THREE.PlaneGeometry(boxSize.x, boxSize.z);
+            position = new THREE.Vector3(0, direction * (boxSize.y / 2 + offset), 0);
+            rotation = new THREE.Euler(direction > 0 ? Math.PI / 2 : -Math.PI / 2, 0, 0);
+        } else if (axis === 'z') {
+            geometry = new THREE.PlaneGeometry(boxSize.x, boxSize.y);
+            position = new THREE.Vector3(0, 0, direction * (boxSize.z / 2 + offset));
+            rotation = new THREE.Euler(0, direction > 0 ? 0 : Math.PI, 0);
+        }
+
+        // ハイライト用のマテリアル（水色、半透明）
+        const material = new THREE.MeshBasicMaterial({
+            color: 0x00dfff,
+            transparent: true,
+            opacity: 0.3,
+            side: THREE.DoubleSide,
+            depthTest: false
+        });
+
+        // ハイライトメッシュを作成
+        this.faceHighlight = new THREE.Mesh(geometry, material);
+        this.faceHighlight.position.copy(position);
+        this.faceHighlight.rotation.copy(rotation);
+        this.faceHighlight.renderOrder = 999; // 最前面に表示
+
+        // trimBoxの子として追加（箱と一緒に動くように）
+        this.trimBox.add(this.faceHighlight);
+
+        console.log('面ハイライト表示:', { axis, direction });
+
+        // 対応する辺もハイライト表示
+        this.highlightEdges(faceHandle);
+    }
+
+    // 面のハイライトを更新（箱のサイズ変更時に呼ばれる）
+    updateFaceHighlight() {
+        if (!this.faceHighlight || !this.activeHandle) return;
+
+        const userData = this.activeHandle.userData;
+        if (userData.type !== 'face') return;
+
+        const axis = userData.axis;
+        const direction = userData.direction;
+
+        // 箱のサイズを取得
+        const boxSize = new THREE.Vector3();
+        this.trimBox.geometry.computeBoundingBox();
+        const bbox = this.trimBox.geometry.boundingBox;
+        boxSize.x = bbox.max.x - bbox.min.x;
+        boxSize.y = bbox.max.y - bbox.min.y;
+        boxSize.z = bbox.max.z - bbox.min.z;
+
+        // ハイライト用の面ジオメトリを作成
+        let geometry, position, rotation;
+        const offset = 0.01; // 箱の面より少し外側に配置
+
+        if (axis === 'x') {
+            geometry = new THREE.PlaneGeometry(boxSize.z, boxSize.y);
+            position = new THREE.Vector3(direction * (boxSize.x / 2 + offset), 0, 0);
+            rotation = new THREE.Euler(0, direction > 0 ? -Math.PI / 2 : Math.PI / 2, 0);
+        } else if (axis === 'y') {
+            geometry = new THREE.PlaneGeometry(boxSize.x, boxSize.z);
+            position = new THREE.Vector3(0, direction * (boxSize.y / 2 + offset), 0);
+            rotation = new THREE.Euler(direction > 0 ? Math.PI / 2 : -Math.PI / 2, 0, 0);
+        } else if (axis === 'z') {
+            geometry = new THREE.PlaneGeometry(boxSize.x, boxSize.y);
+            position = new THREE.Vector3(0, 0, direction * (boxSize.z / 2 + offset));
+            rotation = new THREE.Euler(0, direction > 0 ? 0 : Math.PI, 0);
+        }
+
+        // 既存のジオメトリを破棄して新しいものに置き換え
+        this.faceHighlight.geometry.dispose();
+        this.faceHighlight.geometry = geometry;
+        this.faceHighlight.position.copy(position);
+        this.faceHighlight.rotation.copy(rotation);
+
+        // 辺ハイライトも更新
+        this.highlightEdges(this.activeHandle);
+    }
+
+    // 辺をハイライト表示する
+    highlightEdges(faceHandle) {
+        if (!this.trimBox || !faceHandle) return;
+
+        // 既存の辺ハイライトをクリア
+        this.clearEdgeHighlights();
+
+        const userData = faceHandle.userData;
+        const axis = userData.axis;
+        const direction = userData.direction;
+
+        // 箱のサイズを取得
+        const boxSize = new THREE.Vector3();
+        this.trimBox.geometry.computeBoundingBox();
+        const bbox = this.trimBox.geometry.boundingBox;
+        boxSize.x = bbox.max.x - bbox.min.x;
+        boxSize.y = bbox.max.y - bbox.min.y;
+        boxSize.z = bbox.max.z - bbox.min.z;
+
+        const halfX = boxSize.x / 2;
+        const halfY = boxSize.y / 2;
+        const halfZ = boxSize.z / 2;
+
+        // 面の4つの辺の座標を計算
+        let edgeLines = [];
+
+        if (axis === 'x') {
+            // X軸の面（4本の辺）
+            const x = direction * halfX;
+            edgeLines = [
+                [new THREE.Vector3(x, -halfY, -halfZ), new THREE.Vector3(x, halfY, -halfZ)],
+                [new THREE.Vector3(x, halfY, -halfZ), new THREE.Vector3(x, halfY, halfZ)],
+                [new THREE.Vector3(x, halfY, halfZ), new THREE.Vector3(x, -halfY, halfZ)],
+                [new THREE.Vector3(x, -halfY, halfZ), new THREE.Vector3(x, -halfY, -halfZ)]
+            ];
+        } else if (axis === 'y') {
+            // Y軸の面（4本の辺）
+            const y = direction * halfY;
+            edgeLines = [
+                [new THREE.Vector3(-halfX, y, -halfZ), new THREE.Vector3(halfX, y, -halfZ)],
+                [new THREE.Vector3(halfX, y, -halfZ), new THREE.Vector3(halfX, y, halfZ)],
+                [new THREE.Vector3(halfX, y, halfZ), new THREE.Vector3(-halfX, y, halfZ)],
+                [new THREE.Vector3(-halfX, y, halfZ), new THREE.Vector3(-halfX, y, -halfZ)]
+            ];
+        } else if (axis === 'z') {
+            // Z軸の面（4本の辺）
+            const z = direction * halfZ;
+            edgeLines = [
+                [new THREE.Vector3(-halfX, -halfY, z), new THREE.Vector3(halfX, -halfY, z)],
+                [new THREE.Vector3(halfX, -halfY, z), new THREE.Vector3(halfX, halfY, z)],
+                [new THREE.Vector3(halfX, halfY, z), new THREE.Vector3(-halfX, halfY, z)],
+                [new THREE.Vector3(-halfX, halfY, z), new THREE.Vector3(-halfX, -halfY, z)]
+            ];
+        }
+
+        // 各辺をハイライト表示
+        edgeLines.forEach(([start, end]) => {
+            // ローカル座標からワールド座標に変換
+            const worldStart = start.clone().applyMatrix4(this.trimBox.matrixWorld);
+            const worldEnd = end.clone().applyMatrix4(this.trimBox.matrixWorld);
+
+            const geometry = new THREE.BufferGeometry().setFromPoints([worldStart, worldEnd]);
+            const material = new THREE.LineBasicMaterial({
+                color: 0x00dfff,
+                linewidth: 4,
+                depthTest: false,
+                transparent: true,
+                opacity: 1.0
+            });
+            const line = new THREE.Line(geometry, material);
+            line.renderOrder = 10003; // boxHelperよりも前面に表示（boxHelperは10002）
+
+            // シーンに直接追加（trimBoxの子ではなく）
+            this.scene.add(line);
+            this.edgeHighlights.push(line);
+        });
+
+        console.log('辺ハイライト表示:', { axis, direction, edgeCount: this.edgeHighlights.length });
+    }
+
+    // 辺のハイライトをクリア
+    clearEdgeHighlights() {
+        this.edgeHighlights.forEach(line => {
+            // シーンから削除
+            this.scene.remove(line);
+            line.geometry.dispose();
+            line.material.dispose();
+        });
+        this.edgeHighlights = [];
+    }
+
+    // 面のハイライトをクリア
+    clearFaceHighlight() {
+        if (this.faceHighlight) {
+            if (this.faceHighlight.parent) {
+                this.faceHighlight.parent.remove(this.faceHighlight);
+            }
+            this.faceHighlight.geometry.dispose();
+            this.faceHighlight.material.dispose();
+            this.faceHighlight = null;
+            console.log('面ハイライトクリア');
+        }
+    }
+
     clear() {
         console.log('=== TrimBoxManipulator.clear() 開始 ===');
-        
+
         // クリア時にカメラコントロールを再有効化
         this.enableOrbitControls();
-        
+
+        // 面ハイライトをクリア
+        this.clearFaceHighlight();
+
+        // 辺ハイライトをクリア
+        this.clearEdgeHighlights();
+
         // 面選択をクリア
         this.deselectFace();
         
@@ -2426,8 +2806,11 @@ class TrimBoxManipulator {
         
         // 現在の状態を保存（次回の操作で使用）
         this.currentBoxBounds = new THREE.Box3().setFromObject(this.trimBox);
-        
+
         this.updateHandlePositions();
+
+        // 面ハイライトが表示されている場合は更新
+        this.updateFaceHighlight();
     }
 
     createRotationAxes() {
@@ -2502,6 +2885,105 @@ class TrimBoxManipulator {
         this.updateArrowSizes(); // 矢印を再作成
         console.log('カスタム矢印スケール設定:', this.customArrowScale);
     }
+
+    setArrowType(type) {
+        if (type !== 'arrow' && type !== 'arrow_corn') {
+            console.error('無効な矢印タイプ:', type);
+            return;
+        }
+        this.arrowType = type;
+        this.updateArrowSizes(); // 矢印を再作成
+        console.log('矢印タイプ変更:', this.arrowType);
+    }
+
+    setArrowCornRotation(faceKey, axis, degrees) {
+        // faceKey: 'x+', 'x-', 'y+', 'y-', 'z+', 'z-'
+        // axis: 'x', 'y', 'z'
+        // degrees: 回転角度（度単位、90度刻み）
+        if (!this.arrowCornRotations[faceKey]) {
+            console.error('無効な面キー:', faceKey);
+            return;
+        }
+        if (axis !== 'x' && axis !== 'y' && axis !== 'z') {
+            console.error('無効な軸:', axis);
+            return;
+        }
+        
+        // 90度刻みに制限
+        const normalizedDegrees = Math.round(degrees / 90) * 90;
+        this.arrowCornRotations[faceKey][axis] = normalizedDegrees;
+        
+        // すべての面ハンドルの向きを更新（visible/invisible問わず）
+        this.faceHandles.forEach(handle => {
+            if (handle && handle.userData) {
+                this.orientArrowHandle(handle, handle.userData);
+            }
+        });
+        
+        console.log('arrow_corn回転設定:', faceKey, axis, normalizedDegrees);
+    }
+
+    setArrowCornPositionOffset(offset) {
+        // arrow_corn専用の位置オフセットを設定（すべての矢印を同じ距離だけ外側に移動）
+        this.arrowCornPositionOffset = offset;
+        
+        // 矢印の位置を更新
+        this.updateHandlePositions();
+        
+        console.log('arrow_corn位置オフセット設定:', offset);
+    }
+
+    setArrowCornClickableMargin(axis, margin) {
+        // arrow_corn専用のクリック可能領域のマージンを設定（各軸ごと）
+        // axis: 'x', 'y', 'z'
+        // margin: 0～10.0の範囲
+        if (axis !== 'x' && axis !== 'y' && axis !== 'z') {
+            console.error('無効な軸:', axis);
+            return;
+        }
+        
+        this.arrowCornClickableMargin[axis] = Math.max(0, Math.min(10.0, margin)); // 0～10.0の範囲に制限
+        
+        // すべてのarrow_corn矢印のクリック可能領域を再作成
+        if (this.arrowType === 'arrow_corn' && this.trimBox) {
+            this.updateArrowSizes();
+        }
+        
+        console.log('arrow_cornクリック可能領域マージン設定:', axis, this.arrowCornClickableMargin[axis]);
+    }
+
+    setArrowCornClickableVisible(visible) {
+        // arrow_corn専用のクリック可能領域の表示状態を設定
+        this.arrowCornClickableVisible = visible;
+        
+        // すべてのarrow_corn矢印のクリック可能領域の表示状態を更新
+        this.faceHandles.forEach(handle => {
+            if (handle && handle.children) {
+                handle.children.forEach(child => {
+                    if (child.userData && child.userData.isArrowCornClickable && child.material) {
+                        child.material.opacity = visible ? 0.5 : 0;
+                        child.material.needsUpdate = true;
+                    }
+                });
+            }
+        });
+        
+        console.log('arrow_cornクリック可能領域表示状態:', visible);
+    }
+
+    getArrowPlacementOffset() {
+        const pivotCompensation = (this.customArrowBoundingBox && this.customArrowLoaded)
+            ? this.customArrowPivotOffset * this.customArrowScale
+            : 0;
+        let offset = this.arrowOffset - pivotCompensation;
+        
+        // arrow_cornの場合、追加の位置オフセットを適用
+        if (this.arrowType === 'arrow_corn') {
+            offset += this.arrowCornPositionOffset;
+        }
+        
+        return offset;
+    }
     
     setZArrowRotationEnabled(enabled) {
         this.zArrowRotationEnabled = enabled;
@@ -2543,7 +3025,7 @@ class TrimBoxManipulator {
             const center = box.getCenter(new THREE.Vector3());
 
             // 面ハンドル（6つの面）- 箱の外側に少し出して配置
-            const offset = this.arrowOffset; // 箱から離す距離（動的設定）
+            const offset = this.getArrowPlacementOffset(); // 箱から離す距離（動的設定、矢印の基準オフセットを補正）
             const facePositions = [
                 { pos: new THREE.Vector3(max.x + offset, center.y, center.z), type: 'face', axis: 'x', direction: 1 },
                 { pos: new THREE.Vector3(min.x - offset, center.y, center.z), type: 'face', axis: 'x', direction: -1 },
@@ -2577,12 +3059,48 @@ class TrimBoxManipulator {
 
             console.log('円錐サイズ更新完了:', {
                 arrowOffset: this.arrowOffset,
+                placementOffset: offset,
                 coneRadius: this.coneRadius,
                 coneHeight: this.coneHeight,
-                faceHandleCount: this.faceHandles.length,
-                shouldBeVisible: shouldBeVisible
+                faceHandleCount: this.faceHandles.length
             });
         }
+    }
+
+    updateHandleScales() {
+        // トリミングボックスが存在しない場合は何もしない
+        if (!this.trimBox) return;
+
+        // カメラからトリミングボックス中心までの距離を計算
+        const boxCenter = this.trimBox.position.clone();
+        const cameraDistance = this.camera.position.distanceTo(boxCenter);
+
+        // 基準距離（初期状態のカメラ距離）
+        const referenceDistance = 10.0; // 初期状態での距離を基準とする
+
+        // 距離に応じたスケール係数を計算
+        const scaleFactor = cameraDistance / referenceDistance;
+
+        // 面ハンドル（矢印）のスケールを更新
+        this.faceHandles.forEach(handle => {
+            if (handle && handle.visible) {
+                handle.scale.set(scaleFactor, scaleFactor, scaleFactor);
+            }
+        });
+
+        // エッジハンドル（回転ハンドル）のスケールを更新
+        this.edgeHandles.forEach(handle => {
+            if (handle) {
+                handle.scale.set(scaleFactor, scaleFactor, scaleFactor);
+            }
+        });
+
+        // 頂点ハンドルのスケールを更新
+        this.cornerHandles.forEach(handle => {
+            if (handle) {
+                handle.scale.set(scaleFactor, scaleFactor, scaleFactor);
+            }
+        });
     }
 }
 

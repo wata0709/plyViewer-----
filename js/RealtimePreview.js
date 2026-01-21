@@ -6,7 +6,7 @@ class RealtimePreview {
         this.previewModel = null;
         this.outsideModel = null;
         this.boundaryModel = null; // 境界点群用モデル
-        this.outsideOpacity = 0.1; // 10%に変更
+        this.outsideOpacity = 0.2; // 10%に変更
         this.showOutside = true;
         this.showBoundary = true; // 境界点群表示フラグ（常時表示）
         this.boundaryThreshold = 0.05; // 境界検出の閾値（箱からの距離）
