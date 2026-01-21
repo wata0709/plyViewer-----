@@ -668,6 +668,32 @@ class TrimBoxManipulator {
 
             arrowGroup.add(customArrow);
 
+            // クリック可能領域を作成（矢印を中心に囲む直方体）
+            const box = new THREE.Box3().setFromObject(customArrow);
+            const size = box.getSize(new THREE.Vector3());
+            const center = box.getCenter(new THREE.Vector3());
+            
+            // クリック可能領域のサイズを拡張（マージンを追加）
+            const margin = 0.2; // 各方向に0.2のマージンを追加
+            const clickableGeometry = new THREE.BoxGeometry(
+                size.x + margin * 2,
+                size.y + margin * 2,
+                size.z + margin * 2
+            );
+            const clickableMaterial = new THREE.MeshBasicMaterial({
+                color: axisData.color,
+                transparent: true,
+                opacity: 0.5, // 透明度50%
+                side: THREE.DoubleSide,
+                depthTest: false,
+                depthWrite: false
+            });
+            const clickableMesh = new THREE.Mesh(clickableGeometry, clickableMaterial);
+            clickableMesh.position.copy(center);
+            clickableMesh.userData.isAxisHandleClickable = true;
+            clickableMesh.userData.isAxisHandle = true;
+            arrowGroup.add(clickableMesh);
+
             // 位置を設定（追従ハンドルの位置 + 位置オフセット）
             const positionOffset = this.axisHandlePositions[axisData.axis] || { x: 0, y: 0, z: 0 };
             const localPosition = new THREE.Vector3(
