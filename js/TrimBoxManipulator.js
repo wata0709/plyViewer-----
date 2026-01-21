@@ -1788,9 +1788,10 @@ class TrimBoxManipulator {
         
         console.log('箱移動モード開始');
         
-        // 箱移動モードを開始
+        // 箱移動モードを開始（自由移動）
         this.isDragging = true;
         this.isLongPressActive = true;
+        this.activeAxis = null; // 自由移動
         this.activeHandle = { userData: { type: 'boxMove' } };
         this.initialMousePos.copy(this.mouse);
         this.initialBoxPosition = this.trimBox.position.clone();
