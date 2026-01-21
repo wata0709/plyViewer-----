@@ -3371,15 +3371,15 @@ class TrimBoxManipulator {
             if (!handle || !handle.userData || handle.userData.type !== 'axis') return;
             
             const isSelected = this.activeAxis === handle.userData.axis;
-            const accentColor = handle.userData.color;
+            const selectedColor = 0x00dfff; // 面選択時の矢印と同じ水色
             
             // arrowGroupの子要素から矢印メッシュを探す
             handle.traverse((child) => {
                 if (child.isMesh && child.material && !child.userData.isAxisHandleClickable) {
                     // クリック可能領域ではないメッシュのみ更新
                     if (isSelected) {
-                        // 選択時：アクセントカラー（各軸の色）、不透明度100%
-                        child.material.color.setHex(accentColor);
+                        // 選択時：水色（面選択時の矢印と同じ色）、不透明度100%
+                        child.material.color.setHex(selectedColor);
                         child.material.opacity = 1.0;
                     } else {
                         // 非選択時：白、透明度30%
