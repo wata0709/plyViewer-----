@@ -380,11 +380,13 @@ class TrimBoxManipulator {
         this.faceHandles = [];
         this.edgeHandles = [];
         this.cornerHandles = [];
+        this.axisHandles = [];
         this.initialEdgeRotations = []; // 初期回転をリセット
         this.activeHandle = null; // アクティブなハンドルをリセット
         this.hoveredHandle = null; // ホバー中のハンドルをリセット
         this.hoveredFaceHandle = null; // ホバー中の面ハンドルをリセット
         this.selectedFace = null; // 選択された面をリセット
+        this.activeAxis = null; // 軸制約をリセット
         
         const box = new THREE.Box3().setFromObject(this.trimBox);
         const min = box.min;
@@ -2342,6 +2344,64 @@ class TrimBoxManipulator {
                 axis.position.copy(this.edgeHandles[index].position);
             }
         });
+        
+        // 軸ハンドルの位置を更新
+        if (this.axisHandles.length > 0 && this.edgeHandles.length >= 3) {
+            const leftBackEdgeHandle = this.edgeHandles[2]; // 左奥のエッジハンドル
+            const basePosition = leftBackEdgeHandle.position.clone();
+            
+            const offsetY = boxSize.y + 0.5; // 箱の上面から0.5単位上に配置
+            const arrowSpacing = 0.3; // 矢印間の間隔
+            
+            this.axisHandles.forEach((handle, index) => {
+                const userData = handle.userData;
+                if (!userData || userData.type !== 'axis') return;
+                
+                // ローカル位置を計算
+                const localPosition = new THREE.Vector3();
+                switch (userData.axis) {
+                    case 'x':
+                        localPosition.set(-arrowSpacing, offsetY, 0);
+                        break;
+                    case 'y':
+                        localPosition.set(0, offsetY, 0);
+                        break;
+                    case 'z':
+                        localPosition.set(arrowSpacing, offsetY, 0);
+                        break;
+                }
+                
+                // 箱の回転を考慮して位置を変換
+                localPosition.applyEuler(boxRotation);
+                localPosition.add(basePosition);
+                handle.position.copy(localPosition);
+                
+                // 矢印の向きを更新
+                handle.rotation.set(0, 0, 0);
+                let axisDirection = new THREE.Vector3();
+                switch (userData.axis) {
+                    case 'x':
+                        axisDirection.set(1, 0, 0);
+                        break;
+                    case 'y':
+                        axisDirection.set(0, 1, 0);
+                        break;
+                    case 'z':
+                        axisDirection.set(0, 0, 1);
+                        break;
+                }
+                
+                axisDirection.applyEuler(boxRotation);
+                handle.lookAt(handle.position.clone().add(axisDirection));
+                
+                // arrow_corn_parallelMovementの向きを調整
+                if (userData.axis === 'x') {
+                    handle.rotateY(Math.PI / 2);
+                } else if (userData.axis === 'z') {
+                    handle.rotateX(-Math.PI / 2);
+                }
+            });
+        }
     }
 
     updateBoxPosition(deltaX, deltaY) {
