@@ -2972,7 +2972,7 @@ class TrimBoxManipulator {
         }
         
         // 全てのハンドルをクリア
-        [...this.handles, ...this.faceHandles, ...this.edgeHandles, ...this.cornerHandles].forEach(handle => {
+        [...this.handles, ...this.faceHandles, ...this.edgeHandles, ...this.cornerHandles, ...this.axisHandles].forEach(handle => {
             this.scene.remove(handle);
             
             // Groupの場合は子要素もクリア
@@ -3001,11 +3001,13 @@ class TrimBoxManipulator {
         this.faceHandles = [];
         this.edgeHandles = [];
         this.cornerHandles = [];
+        this.axisHandles = [];
         this.rotationAxes = [];
         this.initialEdgeRotations = []; // 初期回転もクリア
         this.activeHandle = null; // アクティブなハンドルをクリア
         this.hoveredHandle = null; // ホバー中のハンドルをクリア
         this.hoveredFaceHandle = null; // ホバー中の面ハンドルをクリア
+        this.activeAxis = null; // 軸制約をクリア
         
         console.log('=== TrimBoxManipulator.clear() 完了 ===');
         
