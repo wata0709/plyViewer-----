@@ -3224,6 +3224,40 @@ class TrimBoxManipulator {
         console.log('arrow_corn回転設定:', faceKey, axis, normalizedDegrees);
     }
 
+    setAxisHandleRotation(axis, rotationAxis, degrees) {
+        // 平行移動の矢印の回転オフセットを設定（度単位）
+        // axis: 'x', 'y', 'z'（どの軸の矢印か）
+        // rotationAxis: 'x', 'y', 'z'（どの軸で回転するか）
+        // degrees: 回転角度（度単位）
+        
+        if (!this.axisHandleRotations[axis]) {
+            this.axisHandleRotations[axis] = { x: 0, y: 0, z: 0 };
+        }
+        
+        if (rotationAxis !== 'x' && rotationAxis !== 'y' && rotationAxis !== 'z') {
+            console.error('無効な回転軸:', rotationAxis);
+            return;
+        }
+        
+        // 角度を-180～180度の範囲に正規化
+        let normalizedDegrees = degrees % 360;
+        if (normalizedDegrees > 180) {
+            normalizedDegrees -= 360;
+        } else if (normalizedDegrees < -180) {
+            normalizedDegrees += 360;
+        }
+        
+        this.axisHandleRotations[axis][rotationAxis] = normalizedDegrees;
+        
+        // 既存の軸ハンドルに回転を適用（再作成）
+        if (this.trimBox) {
+            this.createAxisHandles();
+            this.updateHandlePositions();
+        }
+        
+        console.log('軸ハンドル回転設定:', axis, rotationAxis, normalizedDegrees);
+    }
+
     setArrowCornPositionOffset(offset) {
         // arrow_corn専用の位置オフセットを設定（すべての矢印を同じ距離だけ外側に移動）
         this.arrowCornPositionOffset = offset;
