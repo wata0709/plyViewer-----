@@ -659,10 +659,17 @@ class TrimBoxManipulator {
             // スケール設定
             customArrow.scale.set(this.customArrowScale, this.customArrowScale, this.customArrowScale);
 
-            // マテリアルを設定（各軸の色）
+            // マテリアルを設定（デフォルトは白、透明度30%）
             customArrow.traverse((child) => {
                 if (child.isMesh) {
-                    child.material = new THREE.MeshBasicMaterial({ color: axisData.color });
+                    child.material = new THREE.MeshBasicMaterial({
+                        color: 0xffffff, // 白
+                        transparent: true,
+                        opacity: 0.3 // 透明度30%
+                    });
+                    // 元の色をuserDataに保存（選択時に使用）
+                    child.userData.originalColor = axisData.color;
+                    child.userData.axis = axisData.axis;
                 }
             });
 
@@ -1175,6 +1182,7 @@ class TrimBoxManipulator {
             if (userData.type === 'axis') {
                 console.log('軸ハンドルクリック:', userData.axis);
                 this.activeAxis = userData.axis;
+                this.updateAxisHandleAppearance(); // 選択状態の見た目を更新
                 this.isDragging = true;
                 this.isLongPressActive = true; // 長押しモードとして扱う
                 this.activeHandle = { userData: { type: 'boxMove', axis: userData.axis } };
@@ -1563,6 +1571,7 @@ class TrimBoxManipulator {
         this.isLongPressActive = false;
         this.clickedFaceIntersection = null;
         this.activeAxis = null; // 軸制約をリセット
+        this.updateAxisHandleAppearance(); // 選択解除時の見た目を更新
         this.renderer.domElement.style.cursor = 'default';
 
         // 面のハイライトをクリア
@@ -3351,6 +3360,33 @@ class TrimBoxManipulator {
         }
         
         console.log('軸ハンドル位置設定:', axis, positionAxis, value);
+    }
+
+    updateAxisHandleAppearance() {
+        // 平行移動の矢印の見た目を更新（選択状態に応じて色と透明度を変更）
+        this.axisHandles.forEach(handle => {
+            if (!handle || !handle.userData || handle.userData.type !== 'axis') return;
+            
+            const arrowMesh = handle.userData.arrowMesh;
+            if (!arrowMesh) return;
+            
+            const isSelected = this.activeAxis === handle.userData.axis;
+            
+            arrowMesh.traverse((child) => {
+                if (child.isMesh && child.material) {
+                    if (isSelected) {
+                        // 選択時：アクセントカラー（各軸の色）、不透明度100%
+                        child.material.color.setHex(handle.userData.color);
+                        child.material.opacity = 1.0;
+                    } else {
+                        // 非選択時：白、透明度30%
+                        child.material.color.setHex(0xffffff);
+                        child.material.opacity = 0.3;
+                    }
+                    child.material.needsUpdate = true;
+                }
+            });
+        });
     }
 
     setArrowCornPositionOffset(offset) {
