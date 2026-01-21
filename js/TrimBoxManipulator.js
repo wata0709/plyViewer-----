@@ -1129,6 +1129,20 @@ class TrimBoxManipulator {
             this.initialBoxBounds = new THREE.Box3().setFromObject(this.trimBox);
             this.initialBoxPosition = this.trimBox.position.clone(); // 箱移動用の初期位置を保存
             
+            // 軸ハンドルがクリックされた場合
+            if (userData.type === 'axis') {
+                console.log('軸ハンドルクリック:', userData.axis);
+                this.activeAxis = userData.axis;
+                this.isDragging = true;
+                this.isLongPressActive = true; // 長押しモードとして扱う
+                this.activeHandle = { userData: { type: 'boxMove', axis: userData.axis } };
+                this.renderer.domElement.style.cursor = 'grabbing';
+                this.setBoxMoveColors(true);
+                this.disableOrbitControls();
+                this.showTrimmingInfo();
+                return; // 早期リターン
+            }
+            
             if (userData.type === 'corner') {
                 this.initialCornerPositions = this.getCornerPositions();
             } else if (userData.type === 'edge') {
