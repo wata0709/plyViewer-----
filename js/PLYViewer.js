@@ -824,7 +824,7 @@ class PLYViewer {
         const vertices = [];
         const colors = [];
         const gridColor = new THREE.Color(0x030303); // シアン色
-        const gridAlpha = 0.5; // 透明度
+        const gridAlpha = 0.3; // 透明度
         
         // グリッドの分割数
         const divisions = Math.floor(gridSize / gridSpacing);
