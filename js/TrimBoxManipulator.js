@@ -3370,22 +3370,23 @@ class TrimBoxManipulator {
         this.axisHandles.forEach(handle => {
             if (!handle || !handle.userData || handle.userData.type !== 'axis') return;
             
-            const arrowMesh = handle.userData.arrowMesh;
-            if (!arrowMesh) return;
-            
             const isSelected = this.activeAxis === handle.userData.axis;
+            const accentColor = handle.userData.color;
             
-            arrowMesh.traverse((child) => {
-                if (child.isMesh && child.material) {
+            // arrowGroupの子要素から矢印メッシュを探す
+            handle.traverse((child) => {
+                if (child.isMesh && child.material && !child.userData.isAxisHandleClickable) {
+                    // クリック可能領域ではないメッシュのみ更新
                     if (isSelected) {
                         // 選択時：アクセントカラー（各軸の色）、不透明度100%
-                        child.material.color.setHex(handle.userData.color);
+                        child.material.color.setHex(accentColor);
                         child.material.opacity = 1.0;
                     } else {
                         // 非選択時：白、透明度30%
                         child.material.color.setHex(0xffffff);
                         child.material.opacity = 0.3;
                     }
+                    child.material.transparent = true;
                     child.material.needsUpdate = true;
                 }
             });
