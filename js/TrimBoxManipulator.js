@@ -642,8 +642,6 @@ class TrimBoxManipulator {
             { axis: 'z', direction: new THREE.Vector3(0, 0, 1), color: 0x0000ff }  // 青（Z軸）
         ];
 
-        const arrowSpacing = 0.3; // 矢印間の間隔
-
         axes.forEach((axisData, index) => {
             // 矢印モデルをクローン
             const arrowGroup = new THREE.Group();
