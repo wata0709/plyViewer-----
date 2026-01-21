@@ -272,13 +272,41 @@ class PLYViewer {
         }
 
         // 平行移動の矢印の位置調整UIのイベントリスナー
-        const setupAxisHandlePositionListener = (axis, positionAxis, sliderId, valueId) => {
+        const setupAxisHandlePositionListener = (axis, positionAxis, sliderId, inputId) => {
             const slider = document.getElementById(sliderId);
-            const valueDisplay = document.getElementById(valueId);
-            if (slider && valueDisplay) {
+            const input = document.getElementById(inputId);
+            if (slider && input) {
+                // スライダー変更時
                 slider.addEventListener('input', (e) => {
                     const value = parseFloat(e.target.value);
-                    valueDisplay.textContent = value.toFixed(1);
+                    input.value = value.toFixed(2);
+                    if (this.trimBoxManipulator) {
+                        this.trimBoxManipulator.setAxisHandlePosition(axis, positionAxis, value);
+                    }
+                });
+                
+                // 数値入力変更時
+                input.addEventListener('input', (e) => {
+                    let value = parseFloat(e.target.value);
+                    if (isNaN(value)) return;
+                    // 範囲制限
+                    value = Math.max(-2, Math.min(2, value));
+                    slider.value = value;
+                    e.target.value = value.toFixed(2);
+                    if (this.trimBoxManipulator) {
+                        this.trimBoxManipulator.setAxisHandlePosition(axis, positionAxis, value);
+                    }
+                });
+                
+                // 数値入力フォーカスアウト時（確定）
+                input.addEventListener('blur', (e) => {
+                    let value = parseFloat(e.target.value);
+                    if (isNaN(value)) {
+                        value = parseFloat(slider.value);
+                    }
+                    value = Math.max(-2, Math.min(2, value));
+                    slider.value = value;
+                    e.target.value = value.toFixed(2);
                     if (this.trimBoxManipulator) {
                         this.trimBoxManipulator.setAxisHandlePosition(axis, positionAxis, value);
                     }
@@ -287,19 +315,19 @@ class PLYViewer {
         };
 
         // X軸矢印の位置
-        setupAxisHandlePositionListener('x', 'x', 'axisHandlePositionX_X', 'axisHandlePositionX_X_Value');
-        setupAxisHandlePositionListener('x', 'y', 'axisHandlePositionX_Y', 'axisHandlePositionX_Y_Value');
-        setupAxisHandlePositionListener('x', 'z', 'axisHandlePositionX_Z', 'axisHandlePositionX_Z_Value');
+        setupAxisHandlePositionListener('x', 'x', 'axisHandlePositionX_X', 'axisHandlePositionX_X_Input');
+        setupAxisHandlePositionListener('x', 'y', 'axisHandlePositionX_Y', 'axisHandlePositionX_Y_Input');
+        setupAxisHandlePositionListener('x', 'z', 'axisHandlePositionX_Z', 'axisHandlePositionX_Z_Input');
 
         // Y軸矢印の位置
-        setupAxisHandlePositionListener('y', 'x', 'axisHandlePositionY_X', 'axisHandlePositionY_X_Value');
-        setupAxisHandlePositionListener('y', 'y', 'axisHandlePositionY_Y', 'axisHandlePositionY_Y_Value');
-        setupAxisHandlePositionListener('y', 'z', 'axisHandlePositionY_Z', 'axisHandlePositionY_Z_Value');
+        setupAxisHandlePositionListener('y', 'x', 'axisHandlePositionY_X', 'axisHandlePositionY_X_Input');
+        setupAxisHandlePositionListener('y', 'y', 'axisHandlePositionY_Y', 'axisHandlePositionY_Y_Input');
+        setupAxisHandlePositionListener('y', 'z', 'axisHandlePositionY_Z', 'axisHandlePositionY_Z_Input');
 
         // Z軸矢印の位置
-        setupAxisHandlePositionListener('z', 'x', 'axisHandlePositionZ_X', 'axisHandlePositionZ_X_Value');
-        setupAxisHandlePositionListener('z', 'y', 'axisHandlePositionZ_Y', 'axisHandlePositionZ_Y_Value');
-        setupAxisHandlePositionListener('z', 'z', 'axisHandlePositionZ_Z', 'axisHandlePositionZ_Z_Value');
+        setupAxisHandlePositionListener('z', 'x', 'axisHandlePositionZ_X', 'axisHandlePositionZ_X_Input');
+        setupAxisHandlePositionListener('z', 'y', 'axisHandlePositionZ_Y', 'axisHandlePositionZ_Y_Input');
+        setupAxisHandlePositionListener('z', 'z', 'axisHandlePositionZ_Z', 'axisHandlePositionZ_Z_Input');
 
         // 平行移動の矢印の追従ハンドル選択
         const axisHandleFollowHandleSelect = document.getElementById('axisHandleFollowHandleSelect');
