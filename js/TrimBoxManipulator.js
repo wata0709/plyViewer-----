@@ -1587,6 +1587,7 @@ class TrimBoxManipulator {
         this.isLongPressActive = false;
         this.clickedFaceIntersection = null;
         this.activeAxis = null; // 軸制約をリセット
+        this.hoveredAxisHandle = null; // ホバー状態をリセット
         this.updateAxisHandleAppearance(); // 選択解除時の見た目を更新
         this.renderer.domElement.style.cursor = 'default';
 
