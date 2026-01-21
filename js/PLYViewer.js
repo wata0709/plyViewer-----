@@ -301,6 +301,18 @@ class PLYViewer {
         setupAxisHandleRotationListener('z', 'y', 'axisHandleRotationZ_Y', 'axisHandleRotationZ_Y_Value');
         setupAxisHandleRotationListener('z', 'z', 'axisHandleRotationZ_Z', 'axisHandleRotationZ_Z_Value');
 
+        // 平行移動の矢印の追従ハンドル選択
+        const axisHandleFollowHandleSelect = document.getElementById('axisHandleFollowHandleSelect');
+        if (axisHandleFollowHandleSelect) {
+            axisHandleFollowHandleSelect.addEventListener('change', (e) => {
+                const value = e.target.value;
+                const [type, index] = value.split(':');
+                if (this.trimBoxManipulator) {
+                    this.trimBoxManipulator.setFollowHandle(type, type === 'edge' ? parseInt(index) : index);
+                }
+            });
+        }
+
         // スライダーのデフォルト値を設定
         const setSliderValue = (sliderId, valueId, value) => {
             const slider = document.getElementById(sliderId);

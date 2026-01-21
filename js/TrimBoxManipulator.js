@@ -36,6 +36,12 @@ class TrimBoxManipulator {
         // 軸制約移動用の変数
         this.activeAxis = null; // 現在アクティブな軸: 'x', 'y', 'z', または null（自由移動）
         
+        // 平行移動の矢印が追従するハンドル
+        // followHandleType: 'edge' または 'corner'
+        // followHandleIndex: エッジハンドルの場合0-3、頂点ハンドルの場合corner名（例: 'max-max-max'）
+        this.followHandleType = 'edge'; // デフォルトはエッジハンドル
+        this.followHandleIndex = 2; // デフォルトは左奥のエッジハンドル（index 2）
+        
         // 平行移動の矢印の回転オフセット（度単位、各軸ごとにXYZ軸）
         // キー: 'x', 'y', 'z'
         this.axisHandleRotations = {
@@ -576,6 +582,25 @@ class TrimBoxManipulator {
         });
     }
 
+    getFollowHandlePosition() {
+        // 追従するハンドルの位置を取得
+        if (this.followHandleType === 'edge') {
+            if (this.edgeHandles.length <= this.followHandleIndex) {
+                console.warn('エッジハンドルが不足しています');
+                return null;
+            }
+            return this.edgeHandles[this.followHandleIndex].position.clone();
+        } else if (this.followHandleType === 'corner') {
+            const cornerHandle = this.cornerHandles.find(h => h.userData && h.userData.corner === this.followHandleIndex);
+            if (!cornerHandle) {
+                console.warn('頂点ハンドルが見つかりません:', this.followHandleIndex);
+                return null;
+            }
+            return cornerHandle.position.clone();
+        }
+        return null;
+    }
+
     createAxisHandles() {
         // 既存の軸ハンドルを削除
         this.axisHandles.forEach(handle => {
@@ -591,14 +616,12 @@ class TrimBoxManipulator {
             return;
         }
 
-        // 左奥のエッジハンドル（index 2）の位置を取得
-        if (this.edgeHandles.length < 3) {
-            console.warn('エッジハンドルが不足しています');
+        // 追従するハンドルの位置を取得
+        const basePosition = this.getFollowHandlePosition();
+        if (!basePosition) {
+            console.warn('追従するハンドルの位置を取得できません');
             return;
         }
-
-        const leftBackEdgeHandle = this.edgeHandles[2]; // 左奥のエッジハンドル
-        const basePosition = leftBackEdgeHandle.position.clone();
 
         // 箱のサイズを取得
         const boxSize = new THREE.Vector3();
@@ -2336,9 +2359,12 @@ class TrimBoxManipulator {
         });
         
         // 軸ハンドルの位置を更新
-        if (this.axisHandles.length > 0 && this.edgeHandles.length >= 3) {
-            const leftBackEdgeHandle = this.edgeHandles[2]; // 左奥のエッジハンドル
-            const basePosition = leftBackEdgeHandle.position.clone();
+        if (this.axisHandles.length > 0) {
+            // 追従するハンドルの位置を取得
+            const basePosition = this.getFollowHandlePosition();
+            if (!basePosition) {
+                return; // ハンドルが見つからない場合はスキップ
+            }
             
             const offsetY = boxSize.y + 0.5; // 箱の上面から0.5単位上に配置
             const arrowSpacing = 0.3; // 矢印間の間隔

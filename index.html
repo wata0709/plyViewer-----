@@ -179,6 +179,27 @@
               <!-- 平行移動の矢印の向き調整 -->
               <div class="option-divider"></div>
               <div class="option-item">
+                <div class="option-label">平行移動の矢印の追従ハンドル</div>
+                <select id="axisHandleFollowHandleSelect" class="option-select">
+                  <optgroup label="エッジハンドル">
+                    <option value="edge:0">右奥</option>
+                    <option value="edge:1">右手前</option>
+                    <option value="edge:2" selected>左奥</option>
+                    <option value="edge:3">左手前</option>
+                  </optgroup>
+                  <optgroup label="頂点ハンドル">
+                    <option value="corner:max-max-max">右上奥</option>
+                    <option value="corner:max-max-min">右上前</option>
+                    <option value="corner:max-min-max">右下奥</option>
+                    <option value="corner:max-min-min">右下前</option>
+                    <option value="corner:min-max-max">左上奥</option>
+                    <option value="corner:min-max-min">左上前</option>
+                    <option value="corner:min-min-max">左下奥</option>
+                    <option value="corner:min-min-min">左下前</option>
+                  </optgroup>
+                </select>
+              </div>
+              <div class="option-item">
                 <div class="option-label">平行移動の矢印の向き調整</div>
               </div>
               <!-- X軸矢印の回転 -->
