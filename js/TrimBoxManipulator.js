@@ -35,6 +35,7 @@ class TrimBoxManipulator {
         
         // 軸制約移動用の変数
         this.activeAxis = null; // 現在アクティブな軸: 'x', 'y', 'z', または null（自由移動）
+        this.hoveredAxisHandle = null; // ホバー中の平行移動の矢印
         
         // 平行移動の矢印が追従するハンドル
         // followHandleType: 'edge' または 'corner'
@@ -298,6 +299,7 @@ class TrimBoxManipulator {
         this.activeHandle = null;
         this.hoveredHandle = null;
         this.hoveredFaceHandle = null;
+        this.hoveredAxisHandle = null;
         this.isDragging = false;
         
         // モデルの中心を取得（サイズ計算用）
@@ -1461,6 +1463,16 @@ class TrimBoxManipulator {
             
             // ホバー状態の変更処理
             this.updateHoverState(newHoveredHandle);
+            
+            // 軸ハンドルのホバー状態を更新
+            let newHoveredAxisHandle = null;
+            if (newHoveredHandle && newHoveredHandle.userData && newHoveredHandle.userData.type === 'axis') {
+                newHoveredAxisHandle = newHoveredHandle;
+            }
+            if (this.hoveredAxisHandle !== newHoveredAxisHandle) {
+                this.hoveredAxisHandle = newHoveredAxisHandle;
+                this.updateAxisHandleAppearance();
+            }
 
             // 面またはその矢印にマウスがある間は該当矢印を表示し続ける
             let desiredFaceHandle = null;
@@ -3366,11 +3378,12 @@ class TrimBoxManipulator {
     }
 
     updateAxisHandleAppearance() {
-        // 平行移動の矢印の見た目を更新（選択状態に応じて色と透明度を変更）
+        // 平行移動の矢印の見た目を更新（選択状態とホバー状態に応じて色と透明度を変更）
         this.axisHandles.forEach(handle => {
             if (!handle || !handle.userData || handle.userData.type !== 'axis') return;
             
             const isSelected = this.activeAxis === handle.userData.axis;
+            const isHovered = this.hoveredAxisHandle === handle;
             const selectedColor = 0x00dfff; // 面選択時の矢印と同じ水色
             
             // arrowGroupの子要素から矢印メッシュを探す
@@ -3380,6 +3393,10 @@ class TrimBoxManipulator {
                     if (isSelected) {
                         // 選択時：水色（面選択時の矢印と同じ色）、不透明度100%
                         child.material.color.setHex(selectedColor);
+                        child.material.opacity = 1.0;
+                    } else if (isHovered) {
+                        // ホバー時：白、不透明度100%
+                        child.material.color.setHex(0xffffff);
                         child.material.opacity = 1.0;
                     } else {
                         // 非選択時：白、透明度30%
