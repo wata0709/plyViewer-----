@@ -540,6 +540,9 @@ class TrimBoxManipulator {
         // 回転軸を作成（初期は非表示）
         this.createRotationAxes();
         
+        // 軸制約移動用のハンドルを作成
+        this.createAxisHandles();
+        
         // ハンドルの位置と向きを更新（デフォルトの個別回転設定を適用）
         this.updateHandlePositions();
         
@@ -560,6 +563,150 @@ class TrimBoxManipulator {
                     z: relativeEuler.z
                 };
             }
+        });
+    }
+
+    createAxisHandles() {
+        // 既存の軸ハンドルを削除
+        this.axisHandles.forEach(handle => {
+            if (handle && handle.parent) {
+                this.scene.remove(handle);
+            }
+        });
+        this.axisHandles = [];
+
+        // arrow_corn_parallelMovementモデルが読み込まれていない場合はスキップ
+        if (!this.customArrowParallelMovementModel || !this.customArrowParallelMovementLoaded) {
+            console.log('arrow_corn_parallelMovementモデルが読み込まれていないため、軸ハンドルを作成しません');
+            return;
+        }
+
+        // 左奥のエッジハンドル（index 2）の位置を取得
+        if (this.edgeHandles.length < 3) {
+            console.warn('エッジハンドルが不足しています');
+            return;
+        }
+
+        const leftBackEdgeHandle = this.edgeHandles[2]; // 左奥のエッジハンドル
+        const basePosition = leftBackEdgeHandle.position.clone();
+
+        // 箱のサイズを取得
+        const boxSize = new THREE.Vector3();
+        this.trimBox.geometry.parameters ? 
+            boxSize.set(
+                this.trimBox.geometry.parameters.width / 2,
+                this.trimBox.geometry.parameters.height / 2,
+                this.trimBox.geometry.parameters.depth / 2
+            ) : boxSize.setFromMatrixScale(this.trimBox.matrixWorld);
+
+        // 箱の上面中央に配置（Y軸方向にオフセット）
+        const offsetY = boxSize.y + 0.5; // 箱の上面から0.5単位上に配置
+
+        // X、Y、Z軸の3つの矢印を作成
+        const axes = [
+            { axis: 'x', direction: new THREE.Vector3(1, 0, 0), color: 0xff0000 }, // 赤（X軸）
+            { axis: 'y', direction: new THREE.Vector3(0, 1, 0), color: 0x00ff00 }, // 緑（Y軸）
+            { axis: 'z', direction: new THREE.Vector3(0, 0, 1), color: 0x0000ff }  // 青（Z軸）
+        ];
+
+        const arrowSpacing = 0.3; // 矢印間の間隔
+
+        axes.forEach((axisData, index) => {
+            // 矢印モデルをクローン
+            const arrowGroup = new THREE.Group();
+            const customArrow = this.customArrowParallelMovementModel.clone();
+
+            // スケール設定
+            customArrow.scale.set(this.customArrowScale, this.customArrowScale, this.customArrowScale);
+
+            // マテリアルを設定（各軸の色）
+            customArrow.traverse((child) => {
+                if (child.isMesh) {
+                    child.material = new THREE.MeshBasicMaterial({ color: axisData.color });
+                }
+            });
+
+            arrowGroup.add(customArrow);
+
+            // クリック可能領域を作成
+            const box = new THREE.Box3().setFromObject(customArrow);
+            const size = box.getSize(new THREE.Vector3());
+            const center = box.getCenter(new THREE.Vector3());
+
+            const marginX = this.arrowCornClickableMargin.x;
+            const marginY = this.arrowCornClickableMargin.y;
+            const marginZ = this.arrowCornClickableMargin.z;
+
+            const clickableGeometry = new THREE.BoxGeometry(
+                size.x * (1 + marginX),
+                size.y * (1 + marginY),
+                size.z * (1 + marginZ)
+            );
+            const clickableMaterial = new THREE.MeshBasicMaterial({
+                color: axisData.color,
+                transparent: true,
+                opacity: this.arrowCornClickableVisible ? 0.3 : 0,
+                side: THREE.DoubleSide
+            });
+            const clickableMesh = new THREE.Mesh(clickableGeometry, clickableMaterial);
+            clickableMesh.position.copy(center);
+            clickableMesh.userData.isArrowCornClickable = true;
+            clickableMesh.userData.isAxisHandle = true;
+            arrowGroup.add(clickableMesh);
+
+            // 位置を設定（左奥のエッジハンドルの上、各軸方向に配置）
+            const localPosition = new THREE.Vector3();
+            switch (axisData.axis) {
+                case 'x':
+                    localPosition.set(-arrowSpacing, offsetY, 0);
+                    break;
+                case 'y':
+                    localPosition.set(0, offsetY, 0);
+                    break;
+                case 'z':
+                    localPosition.set(arrowSpacing, offsetY, 0);
+                    break;
+            }
+
+            // 箱の回転を考慮して位置を変換
+            const boxRotation = this.trimBox.rotation;
+            localPosition.applyEuler(boxRotation);
+            localPosition.add(basePosition);
+            arrowGroup.position.copy(localPosition);
+
+            // 矢印の向きを設定
+            arrowGroup.rotation.set(0, 0, 0);
+            const axisDirection = axisData.direction.clone();
+            axisDirection.applyEuler(boxRotation);
+            
+            // 矢印を軸方向に向ける
+            arrowGroup.lookAt(arrowGroup.position.clone().add(axisDirection));
+
+            // arrow_corn_parallelMovementの向きを調整（必要に応じて）
+            // デフォルトでは矢印が正の方向を向くように設定
+            if (axisData.axis === 'x') {
+                arrowGroup.rotateY(Math.PI / 2);
+            } else if (axisData.axis === 'z') {
+                arrowGroup.rotateX(-Math.PI / 2);
+            }
+            // Y軸はそのまま（上向き）
+
+            // userDataを設定
+            arrowGroup.userData = {
+                type: 'axis',
+                axis: axisData.axis,
+                color: axisData.color
+            };
+
+            this.scene.add(arrowGroup);
+            this.handles.push(arrowGroup);
+            this.axisHandles.push(arrowGroup);
+
+            console.log('軸ハンドル作成:', {
+                axis: axisData.axis,
+                position: localPosition.toArray(),
+                color: axisData.color.toString(16)
+            });
         });
     }
 
