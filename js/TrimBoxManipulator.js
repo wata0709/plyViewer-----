@@ -170,6 +170,33 @@ class TrimBoxManipulator {
         }
     }
 
+    async loadCustomArrowParallelMovementModel() {
+        try {
+            const loader = new OBJLoader();
+            this.customArrowParallelMovementModel = await new Promise((resolve, reject) => {
+                loader.load('OBJ/arrow_corn_parallelMovement.obj', resolve, undefined, reject);
+            });
+            
+            // モデルのスケールとマテリアルを設定
+            this.customArrowParallelMovementModel.traverse((child) => {
+                if (child.isMesh) {
+                    child.material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+                }
+            });
+            
+            this.customArrowParallelMovementLoaded = true;
+            console.log('カスタム矢印モデル (arrow_corn_parallelMovement.obj) の読み込み完了');
+            
+            // モデルが読み込まれたら、軸ハンドルを作成
+            if (this.trimBox) {
+                this.createAxisHandles();
+            }
+        } catch (error) {
+            console.error('arrow_corn_parallelMovementモデルの読み込みに失敗:', error);
+            this.customArrowParallelMovementLoaded = false;
+        }
+    }
+
     async loadRotaryHandleModels() {
         try {
             const loader = new OBJLoader();
