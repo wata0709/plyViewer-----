@@ -3302,6 +3302,31 @@ class TrimBoxManipulator {
         console.log('追従ハンドル設定:', type, index);
     }
 
+    setAxisHandlePosition(axis, positionAxis, value) {
+        // 平行移動の矢印の位置オフセットを設定
+        // axis: 'x', 'y', 'z'（どの軸の矢印か）
+        // positionAxis: 'x', 'y', 'z'（どの方向に移動するか）
+        // value: 位置オフセット値
+        
+        if (!this.axisHandlePositions[axis]) {
+            this.axisHandlePositions[axis] = { x: 0, y: 0, z: 0 };
+        }
+        
+        if (positionAxis !== 'x' && positionAxis !== 'y' && positionAxis !== 'z') {
+            console.error('無効な位置軸:', positionAxis);
+            return;
+        }
+        
+        this.axisHandlePositions[axis][positionAxis] = value;
+        
+        // 既存の軸ハンドルの位置を更新
+        if (this.trimBox) {
+            this.updateHandlePositions();
+        }
+        
+        console.log('軸ハンドル位置設定:', axis, positionAxis, value);
+    }
+
     setArrowCornPositionOffset(offset) {
         // arrow_corn専用の位置オフセットを設定（すべての矢印を同じ距離だけ外側に移動）
         this.arrowCornPositionOffset = offset;
