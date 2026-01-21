@@ -15,6 +15,7 @@ class TrimBoxManipulator {
         this.edgeHandles = []; // エッジのハンドル
         this.cornerHandles = []; // 頂点のハンドル
         this.rotationAxes = []; // 回転軸表示用
+        this.axisHandles = []; // 軸制約移動用のハンドル（X、Y、Z軸矢印）
         this.initialEdgeRotations = []; // エッジハンドルの初期回転を保存
         this.showAxes = false; // 軸表示フラグ
         this.isDragging = false;
@@ -31,6 +32,9 @@ class TrimBoxManipulator {
         this.longPressDuration = 200; // 200ms で長押し判定
         this.isLongPressActive = false;
         this.clickedFaceIntersection = null;
+        
+        // 軸制約移動用の変数
+        this.activeAxis = null; // 現在アクティブな軸: 'x', 'y', 'z', または null（自由移動）
         
         // キー状態追跡
         this.isCommandPressed = false;
@@ -61,9 +65,11 @@ class TrimBoxManipulator {
         // カスタム矢印関連
         this.customArrowModel = null;    // カスタムOBJモデル（arrow.obj）
         this.customArrowCornModel = null; // カスタムOBJモデル（arrow_corn.obj）
+        this.customArrowParallelMovementModel = null; // カスタムOBJモデル（arrow_corn_parallelMovement.obj）
         this.customArrowScale = 0.150;    // カスタム矢印のスケール
         this.customArrowLoaded = false;  // カスタム矢印が読み込まれたかどうか
         this.customArrowCornLoaded = false; // arrow_cornが読み込まれたかどうか
+        this.customArrowParallelMovementLoaded = false; // arrow_corn_parallelMovementが読み込まれたかどうか
         this.arrowType = 'arrow'; // 現在の矢印タイプ: 'arrow' または 'arrow_corn'
         
         // arrow_corn専用の回転オフセット（度単位、各面ごとにXYZ軸）
