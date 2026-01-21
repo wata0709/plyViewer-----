@@ -1520,6 +1520,7 @@ class TrimBoxManipulator {
         this.isDragging = false;
         this.isLongPressActive = false;
         this.clickedFaceIntersection = null;
+        this.activeAxis = null; // 軸制約をリセット
         this.renderer.domElement.style.cursor = 'default';
 
         // 面のハイライトをクリア
