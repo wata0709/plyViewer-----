@@ -313,31 +313,6 @@ class PLYViewer {
             });
         }
 
-        // スライダーのデフォルト値を設定
-        const setSliderValue = (sliderId, valueId, value) => {
-            const slider = document.getElementById(sliderId);
-            const valueDisplay = document.getElementById(valueId);
-            if (slider && valueDisplay) {
-                slider.value = value;
-                valueDisplay.textContent = value.toFixed(1);
-            }
-        };
-
-        // X軸矢印の位置デフォルト値
-        setSliderValue('axisHandlePositionX_X', 'axisHandlePositionX_X_Value', -0.3);
-        setSliderValue('axisHandlePositionX_Y', 'axisHandlePositionX_Y_Value', 0);
-        setSliderValue('axisHandlePositionX_Z', 'axisHandlePositionX_Z_Value', 0);
-
-        // Y軸矢印の位置デフォルト値
-        setSliderValue('axisHandlePositionY_X', 'axisHandlePositionY_X_Value', 0);
-        setSliderValue('axisHandlePositionY_Y', 'axisHandlePositionY_Y_Value', 0);
-        setSliderValue('axisHandlePositionY_Z', 'axisHandlePositionY_Z_Value', 0);
-
-        // Z軸矢印の位置デフォルト値
-        setSliderValue('axisHandlePositionZ_X', 'axisHandlePositionZ_X_Value', 0.3);
-        setSliderValue('axisHandlePositionZ_Y', 'axisHandlePositionZ_Y_Value', 0);
-        setSliderValue('axisHandlePositionZ_Z', 'axisHandlePositionZ_Z_Value', 0);
-
         if (completeSliceBtn) {
             completeSliceBtn.addEventListener('click', () => this.executeTrim());
         }
