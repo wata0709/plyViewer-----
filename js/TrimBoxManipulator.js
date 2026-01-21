@@ -42,12 +42,12 @@ class TrimBoxManipulator {
         this.followHandleType = 'edge'; // デフォルトはエッジハンドル
         this.followHandleIndex = 3; // デフォルトは左手前のエッジハンドル（index 3）
         
-        // 平行移動の矢印の回転オフセット（度単位、各軸ごとにXYZ軸）
+        // 平行移動の矢印の位置オフセット（各軸ごとにXYZ位置）
         // キー: 'x', 'y', 'z'
-        this.axisHandleRotations = {
-            'x': { x: 0, y: 0, z: 0 },
-            'y': { x: 0, y: -90, z: 0 },
-            'z': { x: 0, y: 0, z: 90 }
+        this.axisHandlePositions = {
+            'x': { x: -0.3, y: 0, z: 0 },
+            'y': { x: 0, y: 0, z: 0 },
+            'z': { x: 0.3, y: 0, z: 0 }
         };
         
         // キー状態追跡
@@ -661,19 +661,13 @@ class TrimBoxManipulator {
 
             arrowGroup.add(customArrow);
 
-            // 位置を設定（左奥のエッジハンドルの上、各軸方向に配置）
-            const localPosition = new THREE.Vector3();
-            switch (axisData.axis) {
-                case 'x':
-                    localPosition.set(-arrowSpacing, offsetY, 0);
-                    break;
-                case 'y':
-                    localPosition.set(0, offsetY, 0);
-                    break;
-                case 'z':
-                    localPosition.set(arrowSpacing, offsetY, 0);
-                    break;
-            }
+            // 位置を設定（追従ハンドルの上、各軸方向に配置）
+            const positionOffset = this.axisHandlePositions[axisData.axis] || { x: 0, y: 0, z: 0 };
+            const localPosition = new THREE.Vector3(
+                positionOffset.x,
+                offsetY + positionOffset.y,
+                positionOffset.z
+            );
 
             // 箱の回転を考慮して位置を変換
             const boxRotation = this.trimBox.rotation;
@@ -697,14 +691,6 @@ class TrimBoxManipulator {
                 arrowGroup.rotateX(-Math.PI / 2);
             }
             // Y軸はそのまま（上向き）
-
-            // 回転オフセットを適用
-            const rotationOffset = this.axisHandleRotations[axisData.axis];
-            if (rotationOffset) {
-                arrowGroup.rotateX(rotationOffset.x * Math.PI / 180);
-                arrowGroup.rotateY(rotationOffset.y * Math.PI / 180);
-                arrowGroup.rotateZ(rotationOffset.z * Math.PI / 180);
-            }
 
             // userDataを設定
             arrowGroup.userData = {
@@ -2367,25 +2353,18 @@ class TrimBoxManipulator {
             }
             
             const offsetY = boxSize.y + 0.5; // 箱の上面から0.5単位上に配置
-            const arrowSpacing = 0.3; // 矢印間の間隔
             
             this.axisHandles.forEach((handle, index) => {
                 const userData = handle.userData;
                 if (!userData || userData.type !== 'axis') return;
                 
-                // ローカル位置を計算
-                const localPosition = new THREE.Vector3();
-                switch (userData.axis) {
-                    case 'x':
-                        localPosition.set(-arrowSpacing, offsetY, 0);
-                        break;
-                    case 'y':
-                        localPosition.set(0, offsetY, 0);
-                        break;
-                    case 'z':
-                        localPosition.set(arrowSpacing, offsetY, 0);
-                        break;
-                }
+                // ローカル位置を計算（位置オフセットを使用）
+                const positionOffset = this.axisHandlePositions[userData.axis] || { x: 0, y: 0, z: 0 };
+                const localPosition = new THREE.Vector3(
+                    positionOffset.x,
+                    offsetY + positionOffset.y,
+                    positionOffset.z
+                );
                 
                 // 箱の回転を考慮して位置を変換
                 localPosition.applyEuler(boxRotation);
@@ -2415,14 +2394,6 @@ class TrimBoxManipulator {
                     handle.rotateY(Math.PI / 2);
                 } else if (userData.axis === 'z') {
                     handle.rotateX(-Math.PI / 2);
-                }
-                
-                // 回転オフセットを適用
-                const rotationOffset = this.axisHandleRotations[userData.axis];
-                if (rotationOffset) {
-                    handle.rotateX(rotationOffset.x * Math.PI / 180);
-                    handle.rotateY(rotationOffset.y * Math.PI / 180);
-                    handle.rotateZ(rotationOffset.z * Math.PI / 180);
                 }
             });
         }
@@ -3250,38 +3221,29 @@ class TrimBoxManipulator {
         console.log('arrow_corn回転設定:', faceKey, axis, normalizedDegrees);
     }
 
-    setAxisHandleRotation(axis, rotationAxis, degrees) {
-        // 平行移動の矢印の回転オフセットを設定（度単位）
+    setAxisHandlePosition(axis, positionAxis, value) {
+        // 平行移動の矢印の位置オフセットを設定
         // axis: 'x', 'y', 'z'（どの軸の矢印か）
-        // rotationAxis: 'x', 'y', 'z'（どの軸で回転するか）
-        // degrees: 回転角度（度単位）
+        // positionAxis: 'x', 'y', 'z'（どの軸方向の位置か）
+        // value: 位置オフセット値
         
-        if (!this.axisHandleRotations[axis]) {
-            this.axisHandleRotations[axis] = { x: 0, y: 0, z: 0 };
+        if (!this.axisHandlePositions[axis]) {
+            this.axisHandlePositions[axis] = { x: 0, y: 0, z: 0 };
         }
         
-        if (rotationAxis !== 'x' && rotationAxis !== 'y' && rotationAxis !== 'z') {
-            console.error('無効な回転軸:', rotationAxis);
+        if (positionAxis !== 'x' && positionAxis !== 'y' && positionAxis !== 'z') {
+            console.error('無効な位置軸:', positionAxis);
             return;
         }
         
-        // 角度を-180～180度の範囲に正規化
-        let normalizedDegrees = degrees % 360;
-        if (normalizedDegrees > 180) {
-            normalizedDegrees -= 360;
-        } else if (normalizedDegrees < -180) {
-            normalizedDegrees += 360;
-        }
+        this.axisHandlePositions[axis][positionAxis] = value;
         
-        this.axisHandleRotations[axis][rotationAxis] = normalizedDegrees;
-        
-        // 既存の軸ハンドルに回転を適用（再作成）
+        // 既存の軸ハンドルの位置を更新
         if (this.trimBox) {
-            this.createAxisHandles();
             this.updateHandlePositions();
         }
         
-        console.log('軸ハンドル回転設定:', axis, rotationAxis, normalizedDegrees);
+        console.log('軸ハンドル位置設定:', axis, positionAxis, value);
     }
 
     setFollowHandle(type, index) {

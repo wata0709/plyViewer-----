@@ -271,35 +271,35 @@ class PLYViewer {
             });
         }
 
-        // 平行移動の矢印の回転調整UIのイベントリスナー
-        const setupAxisHandleRotationListener = (axis, rotationAxis, sliderId, valueId) => {
+        // 平行移動の矢印の位置調整UIのイベントリスナー
+        const setupAxisHandlePositionListener = (axis, positionAxis, sliderId, valueId) => {
             const slider = document.getElementById(sliderId);
             const valueDisplay = document.getElementById(valueId);
             if (slider && valueDisplay) {
                 slider.addEventListener('input', (e) => {
-                    const value = parseInt(e.target.value);
-                    valueDisplay.textContent = `${value}°`;
+                    const value = parseFloat(e.target.value);
+                    valueDisplay.textContent = value.toFixed(1);
                     if (this.trimBoxManipulator) {
-                        this.trimBoxManipulator.setAxisHandleRotation(axis, rotationAxis, value);
+                        this.trimBoxManipulator.setAxisHandlePosition(axis, positionAxis, value);
                     }
                 });
             }
         };
 
-        // X軸矢印の回転
-        setupAxisHandleRotationListener('x', 'x', 'axisHandleRotationX_X', 'axisHandleRotationX_X_Value');
-        setupAxisHandleRotationListener('x', 'y', 'axisHandleRotationX_Y', 'axisHandleRotationX_Y_Value');
-        setupAxisHandleRotationListener('x', 'z', 'axisHandleRotationX_Z', 'axisHandleRotationX_Z_Value');
+        // X軸矢印の位置
+        setupAxisHandlePositionListener('x', 'x', 'axisHandlePositionX_X', 'axisHandlePositionX_X_Value');
+        setupAxisHandlePositionListener('x', 'y', 'axisHandlePositionX_Y', 'axisHandlePositionX_Y_Value');
+        setupAxisHandlePositionListener('x', 'z', 'axisHandlePositionX_Z', 'axisHandlePositionX_Z_Value');
 
-        // Y軸矢印の回転
-        setupAxisHandleRotationListener('y', 'x', 'axisHandleRotationY_X', 'axisHandleRotationY_X_Value');
-        setupAxisHandleRotationListener('y', 'y', 'axisHandleRotationY_Y', 'axisHandleRotationY_Y_Value');
-        setupAxisHandleRotationListener('y', 'z', 'axisHandleRotationY_Z', 'axisHandleRotationY_Z_Value');
+        // Y軸矢印の位置
+        setupAxisHandlePositionListener('y', 'x', 'axisHandlePositionY_X', 'axisHandlePositionY_X_Value');
+        setupAxisHandlePositionListener('y', 'y', 'axisHandlePositionY_Y', 'axisHandlePositionY_Y_Value');
+        setupAxisHandlePositionListener('y', 'z', 'axisHandlePositionY_Z', 'axisHandlePositionY_Z_Value');
 
-        // Z軸矢印の回転
-        setupAxisHandleRotationListener('z', 'x', 'axisHandleRotationZ_X', 'axisHandleRotationZ_X_Value');
-        setupAxisHandleRotationListener('z', 'y', 'axisHandleRotationZ_Y', 'axisHandleRotationZ_Y_Value');
-        setupAxisHandleRotationListener('z', 'z', 'axisHandleRotationZ_Z', 'axisHandleRotationZ_Z_Value');
+        // Z軸矢印の位置
+        setupAxisHandlePositionListener('z', 'x', 'axisHandlePositionZ_X', 'axisHandlePositionZ_X_Value');
+        setupAxisHandlePositionListener('z', 'y', 'axisHandlePositionZ_Y', 'axisHandlePositionZ_Y_Value');
+        setupAxisHandlePositionListener('z', 'z', 'axisHandlePositionZ_Z', 'axisHandlePositionZ_Z_Value');
 
         // 平行移動の矢印の追従ハンドル選択
         const axisHandleFollowHandleSelect = document.getElementById('axisHandleFollowHandleSelect');
@@ -319,14 +319,24 @@ class PLYViewer {
             const valueDisplay = document.getElementById(valueId);
             if (slider && valueDisplay) {
                 slider.value = value;
-                valueDisplay.textContent = `${value}°`;
+                valueDisplay.textContent = value.toFixed(1);
             }
         };
 
-        // Y軸矢印のY回転を-90°に設定
-        setSliderValue('axisHandleRotationY_Y', 'axisHandleRotationY_Y_Value', -90);
-        // Z軸矢印のZ回転を90°に設定
-        setSliderValue('axisHandleRotationZ_Z', 'axisHandleRotationZ_Z_Value', 90);
+        // X軸矢印の位置デフォルト値
+        setSliderValue('axisHandlePositionX_X', 'axisHandlePositionX_X_Value', -0.3);
+        setSliderValue('axisHandlePositionX_Y', 'axisHandlePositionX_Y_Value', 0);
+        setSliderValue('axisHandlePositionX_Z', 'axisHandlePositionX_Z_Value', 0);
+
+        // Y軸矢印の位置デフォルト値
+        setSliderValue('axisHandlePositionY_X', 'axisHandlePositionY_X_Value', 0);
+        setSliderValue('axisHandlePositionY_Y', 'axisHandlePositionY_Y_Value', 0);
+        setSliderValue('axisHandlePositionY_Z', 'axisHandlePositionY_Z_Value', 0);
+
+        // Z軸矢印の位置デフォルト値
+        setSliderValue('axisHandlePositionZ_X', 'axisHandlePositionZ_X_Value', 0.3);
+        setSliderValue('axisHandlePositionZ_Y', 'axisHandlePositionZ_Y_Value', 0);
+        setSliderValue('axisHandlePositionZ_Z', 'axisHandlePositionZ_Z_Value', 0);
 
         if (completeSliceBtn) {
             completeSliceBtn.addEventListener('click', () => this.executeTrim());
