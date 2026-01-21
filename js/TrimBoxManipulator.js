@@ -757,6 +757,9 @@ class TrimBoxManipulator {
                 color: axisData.color.toString(16)
             });
         });
+        
+        // 初期状態の見た目を設定
+        this.updateAxisHandleAppearance();
     }
 
     createArrowGeometry(faceData = null) {
