@@ -2366,8 +2366,51 @@ class TrimBoxManipulator {
         
         // 3D空間での移動ベクトルを計算
         const worldMovement = new THREE.Vector3();
-        worldMovement.addScaledVector(cameraRight, worldDeltaX);
-        worldMovement.addScaledVector(cameraUp, worldDeltaY);
+        
+        // 軸制約が有効な場合
+        if (this.activeAxis) {
+            // 箱のローカル座標系での軸方向を取得
+            const boxRotation = this.trimBox.rotation;
+            let axisDirection = new THREE.Vector3();
+            
+            switch (this.activeAxis) {
+                case 'x':
+                    axisDirection.set(1, 0, 0);
+                    break;
+                case 'y':
+                    axisDirection.set(0, 1, 0);
+                    break;
+                case 'z':
+                    axisDirection.set(0, 0, 1);
+                    break;
+            }
+            
+            // 箱の回転を考慮してワールド座標系の軸方向に変換
+            axisDirection.applyEuler(boxRotation);
+            
+            // カメラの右方向と上方向を軸方向に投影
+            const rightProjection = cameraRight.dot(axisDirection);
+            const upProjection = cameraUp.dot(axisDirection);
+            
+            // 投影された移動量を計算
+            const axisMovement = (worldDeltaX * rightProjection + worldDeltaY * upProjection);
+            
+            // 軸方向のみに移動
+            worldMovement.addScaledVector(axisDirection, axisMovement);
+            
+            console.log('軸制約移動:', {
+                axis: this.activeAxis,
+                axisDirection: axisDirection.toArray(),
+                rightProjection,
+                upProjection,
+                axisMovement,
+                worldMovement: worldMovement.toArray()
+            });
+        } else {
+            // 自由移動（従来通り）
+            worldMovement.addScaledVector(cameraRight, worldDeltaX);
+            worldMovement.addScaledVector(cameraUp, worldDeltaY);
+        }
         
         // 新しい箱の位置を設定
         const newPosition = this.initialBoxPosition.clone().add(worldMovement);
@@ -2384,6 +2427,7 @@ class TrimBoxManipulator {
         console.log('箱移動:', { 
             deltaX, deltaY,
             worldDeltaX, worldDeltaY,
+            activeAxis: this.activeAxis,
             newPosition: newPosition.toArray()
         });
     }
