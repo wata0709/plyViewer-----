@@ -410,6 +410,7 @@ class TrimBoxManipulator {
         this.activeHandle = null; // アクティブなハンドルをリセット
         this.hoveredHandle = null; // ホバー中のハンドルをリセット
         this.hoveredFaceHandle = null; // ホバー中の面ハンドルをリセット
+        this.hoveredAxisHandle = null; // ホバー中の平行移動の矢印をリセット
         this.selectedFace = null; // 選択された面をリセット
         this.activeAxis = null; // 軸制約をリセット
         
