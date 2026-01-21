@@ -297,9 +297,24 @@ class PLYViewer {
         setupAxisHandleRotationListener('y', 'z', 'axisHandleRotationY_Z', 'axisHandleRotationY_Z_Value');
 
         // Z軸矢印の回転
-        setupAxisHandleRotationListener('z', 'x', 'axisHandleRotationZ_X', 'axisHandleRotationZ_X_Value');
+        setupAxisHandleRotationListener('z', 'x', 'axisHandleRotationZ_X', 'axisHandleRotationZ_Z_Value');
         setupAxisHandleRotationListener('z', 'y', 'axisHandleRotationZ_Y', 'axisHandleRotationZ_Y_Value');
         setupAxisHandleRotationListener('z', 'z', 'axisHandleRotationZ_Z', 'axisHandleRotationZ_Z_Value');
+
+        // スライダーのデフォルト値を設定
+        const setSliderValue = (sliderId, valueId, value) => {
+            const slider = document.getElementById(sliderId);
+            const valueDisplay = document.getElementById(valueId);
+            if (slider && valueDisplay) {
+                slider.value = value;
+                valueDisplay.textContent = `${value}°`;
+            }
+        };
+
+        // Y軸矢印のY回転を-90°に設定
+        setSliderValue('axisHandleRotationY_Y', 'axisHandleRotationY_Y_Value', -90);
+        // Z軸矢印のZ回転を90°に設定
+        setSliderValue('axisHandleRotationZ_Z', 'axisHandleRotationZ_Z_Value', 90);
 
         if (completeSliceBtn) {
             completeSliceBtn.addEventListener('click', () => this.executeTrim());
