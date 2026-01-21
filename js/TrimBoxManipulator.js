@@ -40,7 +40,7 @@ class TrimBoxManipulator {
         // followHandleType: 'edge' または 'corner'
         // followHandleIndex: エッジハンドルの場合0-3、頂点ハンドルの場合corner名（例: 'max-max-max'）
         this.followHandleType = 'edge'; // デフォルトはエッジハンドル
-        this.followHandleIndex = 2; // デフォルトは左奥のエッジハンドル（index 2）
+        this.followHandleIndex = 3; // デフォルトは左手前のエッジハンドル（index 3）
         
         // 平行移動の矢印の回転オフセット（度単位、各軸ごとにXYZ軸）
         // キー: 'x', 'y', 'z'
