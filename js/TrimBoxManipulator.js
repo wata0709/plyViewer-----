@@ -3284,6 +3284,28 @@ class TrimBoxManipulator {
         console.log('軸ハンドル回転設定:', axis, rotationAxis, normalizedDegrees);
     }
 
+    setFollowHandle(type, index) {
+        // 平行移動の矢印が追従するハンドルを設定
+        // type: 'edge' または 'corner'
+        // index: エッジハンドルの場合0-3、頂点ハンドルの場合corner名（例: 'max-max-max'）
+        
+        if (type !== 'edge' && type !== 'corner') {
+            console.error('無効なハンドルタイプ:', type);
+            return;
+        }
+        
+        this.followHandleType = type;
+        this.followHandleIndex = index;
+        
+        // 既存の軸ハンドルを再作成して位置を更新
+        if (this.trimBox) {
+            this.createAxisHandles();
+            this.updateHandlePositions();
+        }
+        
+        console.log('追従ハンドル設定:', type, index);
+    }
+
     setArrowCornPositionOffset(offset) {
         // arrow_corn専用の位置オフセットを設定（すべての矢印を同じ距離だけ外側に移動）
         this.arrowCornPositionOffset = offset;
