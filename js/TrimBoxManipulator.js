@@ -122,6 +122,7 @@ class TrimBoxManipulator {
         this.setupEventListeners();
         this.loadCustomArrowModel(); // カスタム矢印モデルを読み込み
         this.loadCustomArrowCornModel(); // arrow_cornモデルを読み込み
+        this.loadCustomArrowParallelMovementModel(); // arrow_corn_parallelMovementモデルを読み込み
         this.loadRotaryHandleModels(); // 回転ハンドルモデルを読み込み
     }
 
