@@ -36,6 +36,14 @@ class TrimBoxManipulator {
         // 軸制約移動用の変数
         this.activeAxis = null; // 現在アクティブな軸: 'x', 'y', 'z', または null（自由移動）
         
+        // 平行移動の矢印の回転オフセット（度単位、各軸ごとにXYZ軸）
+        // キー: 'x', 'y', 'z'
+        this.axisHandleRotations = {
+            'x': { x: 0, y: 0, z: 0 },
+            'y': { x: 0, y: 0, z: 0 },
+            'z': { x: 0, y: 0, z: 0 }
+        };
+        
         // キー状態追跡
         this.isCommandPressed = false;
         
@@ -666,6 +674,14 @@ class TrimBoxManipulator {
                 arrowGroup.rotateX(-Math.PI / 2);
             }
             // Y軸はそのまま（上向き）
+
+            // 回転オフセットを適用
+            const rotationOffset = this.axisHandleRotations[axisData.axis];
+            if (rotationOffset) {
+                arrowGroup.rotateX(rotationOffset.x * Math.PI / 180);
+                arrowGroup.rotateY(rotationOffset.y * Math.PI / 180);
+                arrowGroup.rotateZ(rotationOffset.z * Math.PI / 180);
+            }
 
             // userDataを設定
             arrowGroup.userData = {
@@ -2373,6 +2389,14 @@ class TrimBoxManipulator {
                     handle.rotateY(Math.PI / 2);
                 } else if (userData.axis === 'z') {
                     handle.rotateX(-Math.PI / 2);
+                }
+                
+                // 回転オフセットを適用
+                const rotationOffset = this.axisHandleRotations[userData.axis];
+                if (rotationOffset) {
+                    handle.rotateX(rotationOffset.x * Math.PI / 180);
+                    handle.rotateY(rotationOffset.y * Math.PI / 180);
+                    handle.rotateZ(rotationOffset.z * Math.PI / 180);
                 }
             });
         }
