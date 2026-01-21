@@ -255,6 +255,24 @@ class PLYViewer {
             });
         }
 
+        // 矢印タイプの切り替え
+        const arrowTypeSelect = document.getElementById('arrowTypeSelect');
+        if (arrowTypeSelect) {
+            arrowTypeSelect.addEventListener('change', (e) => {
+                this.changeArrowType(e.target.value);
+            });
+        }
+
+        // arrow_cornクリック可能領域表示切り替えトグル
+        const toggleArrowCornClickable = document.getElementById('toggleArrowCornClickable');
+        if (toggleArrowCornClickable) {
+            toggleArrowCornClickable.addEventListener('change', (e) => {
+                this.setArrowCornClickableVisible(e.target.checked);
+            });
+        }
+
+
+
         if (completeSliceBtn) {
             completeSliceBtn.addEventListener('click', () => this.executeTrim());
         }
@@ -1008,6 +1026,27 @@ class PLYViewer {
                 optionPanel.style.display = 'block'; // 表示を復元
                 optionPanel.classList.add('active');
                 optionPanel.classList.remove('closed');
+                
+                // 矢印タイプセレクトボックスの値を現在の設定に合わせる
+                const arrowTypeSelect = document.getElementById('arrowTypeSelect');
+                if (arrowTypeSelect && this.trimBoxManipulator) {
+                    const currentType = this.trimBoxManipulator.arrowType || 'arrow';
+                    arrowTypeSelect.value = currentType;
+                    
+                    // arrow_cornクリック可能領域サイズ調整パネルの表示/非表示を切り替え
+                    const clickablePanel = document.getElementById('arrowCornClickablePanel');
+                    if (clickablePanel) {
+                        clickablePanel.style.display = currentType === 'arrow_corn' ? 'flex' : 'none';
+                        
+                        // arrow_cornの場合、現在の表示状態をUIに反映
+                        if (currentType === 'arrow_corn') {
+                            const toggle = document.getElementById('toggleArrowCornClickable');
+                            if (toggle && this.trimBoxManipulator.arrowCornClickableVisible !== undefined) {
+                                toggle.checked = this.trimBoxManipulator.arrowCornClickableVisible;
+                            }
+                        }
+                    }
+                }
             } else {
                 // スライスモードを抜ける時は完全に非表示
                 optionPanel.classList.remove('active');
@@ -2238,6 +2277,49 @@ class PLYViewer {
         }
 
         console.log('スライスモード中の天球表示方法:', checked ? '天球画像' : 'グレー');
+    }
+
+    changeArrowType(type) {
+        if (!this.trimBoxManipulator) {
+            return;
+        }
+        
+        this.trimBoxManipulator.setArrowType(type);
+        
+        // セレクトボックスの値を更新
+        const arrowTypeSelect = document.getElementById('arrowTypeSelect');
+        if (arrowTypeSelect) {
+            arrowTypeSelect.value = type;
+        }
+        
+        // arrow_cornクリック可能領域サイズ調整パネルの表示/非表示を切り替え
+        const clickablePanel = document.getElementById('arrowCornClickablePanel');
+        if (clickablePanel) {
+            clickablePanel.style.display = type === 'arrow_corn' ? 'flex' : 'none';
+        }
+        
+        console.log('矢印タイプ変更:', type);
+    }
+
+    setArrowCornClickableVisible(visible) {
+        if (!this.trimBoxManipulator) {
+            return;
+        }
+        
+        // arrow_cornでない場合は何もしない
+        if (this.trimBoxManipulator.arrowType !== 'arrow_corn') {
+            return;
+        }
+        
+        this.trimBoxManipulator.setArrowCornClickableVisible(visible);
+        
+        // トグルの値を更新
+        const toggle = document.getElementById('toggleArrowCornClickable');
+        if (toggle) {
+            toggle.checked = visible;
+        }
+        
+        console.log('arrow_cornクリック可能領域表示状態:', visible);
     }
 
     setupOrientationEventListeners() {

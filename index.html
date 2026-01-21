@@ -1,292 +1,344 @@
 <!DOCTYPE html>
 <html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>sliceFunctionDemo</title>
-    <link rel="stylesheet" href="css/styles.css">
-</head>
-<body>
+    <link rel="stylesheet" href="css/styles.css" />
+  </head>
+  <body>
     <div id="container">
-        <!-- Header -->
-        <div id="header">
-            <div id="logo">
-                <img src="assets/logo.png" alt="ロゴ" />
-            </div>
-            <div id="headerRightSection">
-                <div id="comboBox">
-                    <div id="comboBoxInput">
-                        <div class="frame1248">
-                            <select id="projectSelect">
-                                <option>調合工程/第3プラント2FL</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div id="searchInput">
-                <img src="assets/search.svg" alt="検索" />
-                <input type="text" placeholder="検索" />
-            </div>
+      <!-- Header -->
+      <div id="header">
+        <div id="logo">
+          <img src="assets/logo.png" alt="ロゴ" />
         </div>
-
-        <div class="main-content">
-            <!-- Sidebar -->
-            <div id="sidebar">
-                <div id="sideMenu">
-                    <div id="sideMenuHeader">
-                        <div class="addContentsMenu">
-                            <button class="sidebar-button" id="addMarkerBtn" title="マーカー">
-                                <img src="assets/marker.svg" alt="マーカー" />
-                            </button>
-                            <button class="sidebar-button" id="addPipeBtn" title="パイプ">
-                                <img src="assets/pipeSector.svg" alt="パイプ" />
-                            </button>
-                            <button class="sidebar-button" id="addRulerBtn" title="ルーラー">
-                                <img src="assets/brick.svg" alt="ルーラー" />
-                            </button>
-                            <button class="sidebar-button" id="addBrickBtn" title="レンガ">
-                                <img src="assets/ruler.svg" alt="レンガ" />
-                            </button>
-                        </div>
-                        <div class="sidebar-divider"></div>
-                        <div class="addAssetMenu">
-                            <button class="sidebar-button" id="addMachineBtn" title="機械を追加" onclick="document.getElementById('fileInput').click()">
-                                <img src="assets/addMachine.svg" alt="機械を追加" />
-                            </button>
-                            <button class="sidebar-button" id="addPipeAssetBtn" title="パイプを追加">
-                                <img src="assets/addPipe.svg" alt="パイプを追加" />
-                            </button>
-                            <button class="sidebar-button" id="addFlangeBtn" title="フランジを追加">
-                                <img src="assets/flange.svg" alt="フランジを追加" />
-                            </button>
-                            <button class="sidebar-button" id="addFlange2Btn" title="フランジ2を追加">
-                                <img src="assets/valve.svg" alt="フランジ2を追加" />
-                            </button>
-                        </div>
-                    </div>
-                    <div id="sideMenuFooter">
-                        <button class="sidebar-button" id="newsBtn" title="ニュース">
-                            <img src="assets/news.svg" alt="ニュース" />
-                        </button>
-                        <button class="sidebar-button" id="accountBtn" title="アカウント">
-                            <img src="assets/account.svg" alt="アカウント" />
-                        </button>
-                        <button class="sidebar-button" id="settingsBtn" title="設定">
-                            <img src="assets/settings.svg" alt="設定" />
-                        </button>
-                    </div>
-                </div>
+        <div id="headerRightSection">
+          <div id="comboBox">
+            <div id="comboBoxInput">
+              <div class="frame1248">
+                <select id="projectSelect">
+                  <option>調合工程/第3プラント2FL</option>
+                </select>
+              </div>
             </div>
-            <div id="viewer">
-                <!-- スライス中の白枠 -->
-                <div id="operationFrame"></div>
+          </div>
+        </div>
+        <div id="searchInput">
+          <img src="assets/search.svg" alt="検索" />
+          <input type="text" placeholder="検索" />
+        </div>
+      </div>
 
-                <!-- スライス中ステータス -->
-                <div id="slicingStatus" style="display: none;">
-                    <div class="slicing-status-corner slicing-status-corner-left">
-                        <img src="assets/corner.svg" alt="" />
-                    </div>
-                    <div id="slicingStatusContainer">
-                        <div id="slicingStatusText">スライス中...</div>
-                        <button id="completeSliceBtn">完了する</button>
-                        <div style="width: 1px; height: 28px; background: #c0c3cc;"></div>
-                        <button id="cancelSliceBtn">
-                            <img src="assets/close.svg" alt="閉じる" />
-                        </button>
-                    </div>
-                    <div class="slicing-status-corner slicing-status-corner-right">
-                        <img src="assets/corner.svg" alt="" />
-                    </div>
-                </div>
-
-                <!-- スライス完了時のステータス -->
-                <div id="sliceViewMode" style="display: none;">
-                    <div id="sliceViewModeContainer">
-                        <div id="sliceViewModeText">スライスモードで表示中</div>
-                        <button id="editSliceBtn">編集する</button>
-                        <div style="width: 1px; height: 28px; background: #c0c3cc;"></div>
-                        <button id="closeSliceViewBtn">
-                            <img src="assets/close.svg" alt="閉じる" />
-                        </button>
-                    </div>
-                </div>
-
-                <!-- オプションパネル -->
-                <div id="optionPanel">
-                    <div id="optionPanelHeader">
-                        <div id="optionPanelTitle">
-                            <img id="optionPanelArrow" src="assets/arrow.svg" alt="" />
-                            <span>オプションパネル</span>
-                        </div>
-                    </div>
-                    <div id="optionPanelContent">
-                        <button id="fullRangeSliceBtn">全範囲を表示する</button>
-                        <div class="option-item">
-                            <div class="option-label">外側の点群を表示する</div>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="toggleOutsideViewNew" checked>
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
-                        <div class="option-item">
-                            <div class="option-label">天球を表示する（確認用）</div>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="toggleSkyboxSlice" checked>
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
-                        <!-- <div class="option-divider"></div> -->
-
-                    </div>
-                </div>
-
-                <div id="dropZone" class="drop-zone">
-                    <div>📁</div>
-                    <div>PLYファイルをドロップ</div>
-                    <div style="font-size: 12px; margin-top: 10px;">またはクリックして選択</div>
-                </div>
-                <div id="loadingIndicator">
-                    <div>読み込み中...</div>
-                </div>
-
-                <div id="trimmingInfo" class="trimming-info">
-                    トリミング操作中  |  面:移動   辺:回転   頂点:対角基点変形 | Escキーでキャンセル
-                </div>
-
-                <!-- 全範囲スライス確認モーダル -->
-                <div id="fullRangeSliceModal" style="display: none;">
-                    <div id="fullRangeSliceModalOverlay"></div>
-                    <div id="fullRangeSliceModalContent">
-                        <div id="fullRangeSliceModalHeader">
-                            <div id="fullRangeSliceModalTitle">
-                                <p id="fullRangeSliceModalTitleText">全範囲を表示しようとしています</p>
-                                <p id="fullRangeSliceModalDescription">スライス範囲をリセットして、プラント全体を表示しますか？</p>
-                            </div>
-                            <button id="fullRangeSliceModalCloseBtn">
-                                <img src="assets/close.svg" alt="閉じる" />
-                            </button>
-                        </div>
-                        <div id="fullRangeSliceModalButtons">
-                            <button id="fullRangeSliceModalCancelBtn">キャンセル</button>
-                            <button id="fullRangeSliceModalConfirmBtn">表示する</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- スライス解除確認モーダル -->
-                <div id="removeSliceModal" style="display: none;">
-                    <div id="removeSliceModalOverlay"></div>
-                    <div id="removeSliceModalContent">
-                        <div id="removeSliceModalHeader">
-                            <div id="removeSliceModalTitle">
-                                <p id="removeSliceModalTitleText">スライスを解除しようとしています</p>
-                                <div id="removeSliceModalDescription">
-                                    <p>スライスした範囲を解除しようとしています。</p>
-                                    <p>このまま解除すると、スライス設定は失われます。</p>
-                                    <p>よろしいですか？</p>
-                                </div>
-                            </div>
-                            <button id="removeSliceModalCloseBtn">
-                                <img src="assets/close.svg" alt="閉じる" />
-                            </button>
-                        </div>
-                        <div id="removeSliceModalButtons">
-                            <button id="removeSliceModalCancelBtn">スライス表示を維持する</button>
-                            <button id="removeSliceModalConfirmBtn">スライスを解除する</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 向き調整モーダル -->
-                <div id="orientationModal">
-                    <div id="orientationPanel">
-                        <h2>📐 向き調整</h2>
-                        <p>マウスでモデルを回転させて確認しながら、<br>ボタンで最適な向きに調整してください。</p>
-                        
-                        <div class="preset-controls">
-                            <button class="preset-btn" id="presetFront">正面</button>
-                            <button class="preset-btn" id="presetTop">上面</button>
-                            <button class="preset-btn" id="presetSide">側面</button>
-                            <button class="preset-btn" id="presetIso">等角</button>
-                        </div>
-                        
-                        <div class="orientation-controls">
-                            <button class="orientation-btn" id="rotateXPos">X軸+90°</button>
-                            <button class="orientation-btn" id="rotateYPos">Y軸+90°</button>
-                            <button class="orientation-btn" id="rotateZPos">Z軸+90°</button>
-                            <button class="orientation-btn" id="rotateXNeg">X軸-90°</button>
-                            <button class="orientation-btn" id="rotateYNeg">Y軸-90°</button>
-                            <button class="orientation-btn" id="rotateZNeg">Z軸-90°</button>
-                            <button class="orientation-btn" id="flipX">X軸反転</button>
-                            <button class="orientation-btn" id="flipY">Y軸反転</button>
-                            <button class="orientation-btn" id="flipZ">Z軸反転</button>
-                        </div>
-                        
-                        <div style="display: flex; gap: 15px; justify-content: center;">
-                            <button class="btn" id="resetOrientation">リセット</button>
-                            <button class="btn" id="confirmOrientation">この向きで確定</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 左側のメニュー -->
-            <div id="leftMenu">
-                <button id="miniMapButton" title="ミニマップ">
-                    <img src="assets/miniMap.svg" alt="ミニマップ" />
+      <div class="main-content">
+        <!-- Sidebar -->
+        <div id="sidebar">
+          <div id="sideMenu">
+            <div id="sideMenuHeader">
+              <div class="addContentsMenu">
+                <button
+                  class="sidebar-button"
+                  id="addMarkerBtn"
+                  title="マーカー"
+                >
+                  <img src="assets/marker.svg" alt="マーカー" />
                 </button>
+                <button class="sidebar-button" id="addPipeBtn" title="パイプ">
+                  <img src="assets/pipeSector.svg" alt="パイプ" />
+                </button>
+                <button
+                  class="sidebar-button"
+                  id="addRulerBtn"
+                  title="ルーラー"
+                >
+                  <img src="assets/brick.svg" alt="ルーラー" />
+                </button>
+                <button class="sidebar-button" id="addBrickBtn" title="レンガ">
+                  <img src="assets/ruler.svg" alt="レンガ" />
+                </button>
+              </div>
+              <div class="sidebar-divider"></div>
+              <div class="addAssetMenu">
+                <button
+                  class="sidebar-button"
+                  id="addMachineBtn"
+                  title="機械を追加"
+                  onclick="document.getElementById('fileInput').click()"
+                >
+                  <img src="assets/addMachine.svg" alt="機械を追加" />
+                </button>
+                <button
+                  class="sidebar-button"
+                  id="addPipeAssetBtn"
+                  title="パイプを追加"
+                >
+                  <img src="assets/addPipe.svg" alt="パイプを追加" />
+                </button>
+                <button
+                  class="sidebar-button"
+                  id="addFlangeBtn"
+                  title="フランジを追加"
+                >
+                  <img src="assets/flange.svg" alt="フランジを追加" />
+                </button>
+                <button
+                  class="sidebar-button"
+                  id="addFlange2Btn"
+                  title="フランジ2を追加"
+                >
+                  <img src="assets/valve.svg" alt="フランジ2を追加" />
+                </button>
+              </div>
             </div>
+            <div id="sideMenuFooter">
+              <button class="sidebar-button" id="newsBtn" title="ニュース">
+                <img src="assets/news.svg" alt="ニュース" />
+              </button>
+              <button class="sidebar-button" id="accountBtn" title="アカウント">
+                <img src="assets/account.svg" alt="アカウント" />
+              </button>
+              <button class="sidebar-button" id="settingsBtn" title="設定">
+                <img src="assets/settings.svg" alt="設定" />
+              </button>
+            </div>
+          </div>
+        </div>
+        <div id="viewer">
+          <!-- スライス中の白枠 -->
+          <div id="operationFrame"></div>
 
-            <!-- 右下のコントロールUI -->
-            <div id="controlMenu">
-                <div id="viewControl">
-                    <div id="viewControlTabs">
-                        <button class="view-control-tab" id="orbitTab" title="Orbit">
-                            <img src="assets/path.svg" alt="Orbit" />
-                        </button>
-                        <button class="view-control-tab active" id="lookTab" title="Look">
-                            <img src="assets/look.svg" alt="Look" />
-                        </button>
-                        <button class="view-control-tab" id="thirdTab" title="Third">
-                            <img src="assets/fly.svg" alt="Third" />
-                        </button>
-                    </div>
-                </div>
-                <div id="bottomMenu">
-                    <div id="sliceButton">
-                        <button id="toggleTrimBoxNew" title="スライス" disabled>
-                            <img src="assets/sliceIcon.svg" alt="スライス" />
-                        </button>
-                    </div>
-                    <div id="modeSwitch">
-                        <div class="mode-button-wrapper">
-                            <button class="mode-button active" id="mode3D" title="3Dモード">
-                                <img src="assets/3dMode.svg" alt="3Dモード" />
-                            </button>
-                        </div>
-                        <div class="mode-button-wrapper">
-                            <button class="mode-button" id="modeWalkThrough" title="ウォークスルーモード">
-                                <img src="assets/2dMode.svg" alt="ウォークスルーモード" />
-                            </button>
-                        </div>
-                    </div>
-                </div>
+          <!-- スライス中ステータス -->
+          <div id="slicingStatus" style="display: none">
+            <div class="slicing-status-corner slicing-status-corner-left">
+              <img src="assets/corner.svg" alt="" />
             </div>
+            <div id="slicingStatusContainer">
+              <div id="slicingStatusText">スライス中...</div>
+              <button id="completeSliceBtn">完了する</button>
+              <div style="width: 1px; height: 28px; background: #c0c3cc"></div>
+              <button id="cancelSliceBtn">
+                <img src="assets/close.svg" alt="閉じる" />
+              </button>
+            </div>
+            <div class="slicing-status-corner slicing-status-corner-right">
+              <img src="assets/corner.svg" alt="" />
+            </div>
+          </div>
+
+          <!-- スライス完了時のステータス -->
+          <div id="sliceViewMode" style="display: none">
+            <div id="sliceViewModeContainer">
+              <div id="sliceViewModeText">スライスモードで表示中</div>
+              <button id="editSliceBtn">編集する</button>
+              <div style="width: 1px; height: 28px; background: #c0c3cc"></div>
+              <button id="closeSliceViewBtn">
+                <img src="assets/close.svg" alt="閉じる" />
+              </button>
+            </div>
+          </div>
+
+          <!-- オプションパネル -->
+          <div id="optionPanel">
+            <div id="optionPanelHeader">
+              <div id="optionPanelTitle">
+                <img id="optionPanelArrow" src="assets/arrow.svg" alt="" />
+                <span>オプションパネル</span>
+              </div>
+            </div>
+            <div id="optionPanelContent">
+              <button id="fullRangeSliceBtn">全範囲を表示する</button>
+              <div class="option-item">
+                <div class="option-label">外側の点群を表示する</div>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="toggleOutsideViewNew" checked />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="option-item">
+                <div class="option-label">天球を表示する（確認用）</div>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="toggleSkyboxSlice" checked />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="option-item">
+                <div class="option-label">矢印の種類</div>
+                <select id="arrowTypeSelect" class="option-select">
+                  <option value="arrow">矢印（arrow）</option>
+                  <option value="arrow_corn">矢印（arrow_corn）</option>
+                </select>
+              </div>
+              <!-- arrow_corn専用のクリック可能領域表示切り替え（arrow_corn選択時のみ表示） -->
+              <div id="arrowCornClickablePanel" class="option-item" style="display: none;">
+                <div class="option-label">arrow_corn クリック領域を表示する</div>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="toggleArrowCornClickable" checked />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <!-- <div class="option-divider"></div> -->
+            </div>
+          </div>
+
+          <div id="dropZone" class="drop-zone">
+            <div>📁</div>
+            <div>PLYファイルをドロップ</div>
+            <div style="font-size: 12px; margin-top: 10px">
+              またはクリックして選択
+            </div>
+          </div>
+          <div id="loadingIndicator">
+            <div>読み込み中...</div>
+          </div>
+
+          <div id="trimmingInfo" class="trimming-info">
+            トリミング操作中 | 面:移動 辺:回転 頂点:対角基点変形 |
+            Escキーでキャンセル
+          </div>
+
+          <!-- 全範囲スライス確認モーダル -->
+          <div id="fullRangeSliceModal" style="display: none">
+            <div id="fullRangeSliceModalOverlay"></div>
+            <div id="fullRangeSliceModalContent">
+              <div id="fullRangeSliceModalHeader">
+                <div id="fullRangeSliceModalTitle">
+                  <p id="fullRangeSliceModalTitleText">
+                    全範囲を表示しようとしています
+                  </p>
+                  <p id="fullRangeSliceModalDescription">
+                    スライス範囲をリセットして、プラント全体を表示しますか？
+                  </p>
+                </div>
+                <button id="fullRangeSliceModalCloseBtn">
+                  <img src="assets/close.svg" alt="閉じる" />
+                </button>
+              </div>
+              <div id="fullRangeSliceModalButtons">
+                <button id="fullRangeSliceModalCancelBtn">キャンセル</button>
+                <button id="fullRangeSliceModalConfirmBtn">表示する</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- スライス解除確認モーダル -->
+          <div id="removeSliceModal" style="display: none">
+            <div id="removeSliceModalOverlay"></div>
+            <div id="removeSliceModalContent">
+              <div id="removeSliceModalHeader">
+                <div id="removeSliceModalTitle">
+                  <p id="removeSliceModalTitleText">
+                    スライスを解除しようとしています
+                  </p>
+                  <div id="removeSliceModalDescription">
+                    <p>スライスした範囲を解除しようとしています。</p>
+                    <p>このまま解除すると、スライス設定は失われます。</p>
+                    <p>よろしいですか？</p>
+                  </div>
+                </div>
+                <button id="removeSliceModalCloseBtn">
+                  <img src="assets/close.svg" alt="閉じる" />
+                </button>
+              </div>
+              <div id="removeSliceModalButtons">
+                <button id="removeSliceModalCancelBtn">
+                  スライス表示を維持する
+                </button>
+                <button id="removeSliceModalConfirmBtn">
+                  スライスを解除する
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 向き調整モーダル -->
+          <div id="orientationModal">
+            <div id="orientationPanel">
+              <h2>📐 向き調整</h2>
+              <p>
+                マウスでモデルを回転させて確認しながら、<br />ボタンで最適な向きに調整してください。
+              </p>
+
+              <div class="preset-controls">
+                <button class="preset-btn" id="presetFront">正面</button>
+                <button class="preset-btn" id="presetTop">上面</button>
+                <button class="preset-btn" id="presetSide">側面</button>
+                <button class="preset-btn" id="presetIso">等角</button>
+              </div>
+
+              <div class="orientation-controls">
+                <button class="orientation-btn" id="rotateXPos">X軸+90°</button>
+                <button class="orientation-btn" id="rotateYPos">Y軸+90°</button>
+                <button class="orientation-btn" id="rotateZPos">Z軸+90°</button>
+                <button class="orientation-btn" id="rotateXNeg">X軸-90°</button>
+                <button class="orientation-btn" id="rotateYNeg">Y軸-90°</button>
+                <button class="orientation-btn" id="rotateZNeg">Z軸-90°</button>
+                <button class="orientation-btn" id="flipX">X軸反転</button>
+                <button class="orientation-btn" id="flipY">Y軸反転</button>
+                <button class="orientation-btn" id="flipZ">Z軸反転</button>
+              </div>
+
+              <div style="display: flex; gap: 15px; justify-content: center">
+                <button class="btn" id="resetOrientation">リセット</button>
+                <button class="btn" id="confirmOrientation">
+                  この向きで確定
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <!-- 非表示のファイル入力 -->
-        <input type="file" id="fileInput" accept=".ply" style="display: none;" />
+        <!-- 左側のメニュー -->
+        <div id="leftMenu">
+          <button id="miniMapButton" title="ミニマップ">
+            <img src="assets/miniMap.svg" alt="ミニマップ" />
+          </button>
+        </div>
+
+        <!-- 右下のコントロールUI -->
+        <div id="controlMenu">
+          <div id="viewControl">
+            <div id="viewControlTabs">
+              <button class="view-control-tab" id="orbitTab" title="Orbit">
+                <img src="assets/path.svg" alt="Orbit" />
+              </button>
+              <button class="view-control-tab active" id="lookTab" title="Look">
+                <img src="assets/look.svg" alt="Look" />
+              </button>
+              <button class="view-control-tab" id="thirdTab" title="Third">
+                <img src="assets/fly.svg" alt="Third" />
+              </button>
+            </div>
+          </div>
+          <div id="bottomMenu">
+            <div id="sliceButton">
+              <button id="toggleTrimBoxNew" title="スライス" disabled>
+                <img src="assets/sliceIcon.svg" alt="スライス" />
+              </button>
+            </div>
+            <div id="modeSwitch">
+              <div class="mode-button-wrapper">
+                <button class="mode-button active" id="mode3D" title="3Dモード">
+                  <img src="assets/3dMode.svg" alt="3Dモード" />
+                </button>
+              </div>
+              <div class="mode-button-wrapper">
+                <button
+                  class="mode-button"
+                  id="modeWalkThrough"
+                  title="ウォークスルーモード"
+                >
+                  <img src="assets/2dMode.svg" alt="ウォークスルーモード" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 非表示のファイル入力 -->
+      <input type="file" id="fileInput" accept=".ply" style="display: none" />
     </div>
 
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-            }
-        }
-    </script>
     <script type="module" src="app.js"></script>
-</body>
+  </body>
 </html>

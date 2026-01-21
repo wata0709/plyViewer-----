@@ -59,9 +59,37 @@ class TrimBoxManipulator {
         this.leaderRadius = this.leaderThickness * 0.01; // 0.03
         
         // カスタム矢印関連
-        this.customArrowModel = null;    // カスタムOBJモデル
+        this.customArrowModel = null;    // カスタムOBJモデル（arrow.obj）
+        this.customArrowCornModel = null; // カスタムOBJモデル（arrow_corn.obj）
         this.customArrowScale = 0.150;    // カスタム矢印のスケール
         this.customArrowLoaded = false;  // カスタム矢印が読み込まれたかどうか
+        this.customArrowCornLoaded = false; // arrow_cornが読み込まれたかどうか
+        this.arrowType = 'arrow'; // 現在の矢印タイプ: 'arrow' または 'arrow_corn'
+        
+        // arrow_corn専用の回転オフセット（度単位、各面ごとにXYZ軸）
+        // キー: 'x+', 'x-', 'y+', 'y-', 'z+', 'z-'
+        // デフォルト: すべての面のZ軸を90度に設定
+        this.arrowCornRotations = {
+            'x+': { x: 0, y: 0, z: 90 },
+            'x-': { x: 0, y: 0, z: 90 },
+            'y+': { x: 0, y: 0, z: 90 },
+            'y-': { x: 0, y: 0, z: 90 },
+            'z+': { x: 0, y: 0, z: 90 },
+            'z-': { x: 0, y: 0, z: 90 }
+        };
+        
+        // arrow_corn専用の位置オフセット（すべての矢印を同じ距離だけ外側に移動）
+        this.arrowCornPositionOffset = 1.0; // デフォルトは1.0
+        
+        // arrow_corn専用のクリック可能領域のマージン（各軸ごとの拡張率）
+        this.arrowCornClickableMargin = {
+            x: 0.5,  // X軸方向のマージン（デフォルト50%拡張）
+            y: 7.0, // Y軸方向のマージン（デフォルト1000%拡張）
+            z: 7.0  // Z軸方向のマージン（デフォルト1000%拡張）
+        };
+        
+        // arrow_corn専用のクリック可能領域の表示状態
+        this.arrowCornClickableVisible = true; // デフォルトは表示
         
         // 回転ハンドル関連
         this.rotaryHandleEnableModel = null;    // デフォルト状態の回転ハンドルOBJモデル
@@ -87,6 +115,7 @@ class TrimBoxManipulator {
         
         this.setupEventListeners();
         this.loadCustomArrowModel(); // カスタム矢印モデルを読み込み
+        this.loadCustomArrowCornModel(); // arrow_cornモデルを読み込み
         this.loadRotaryHandleModels(); // 回転ハンドルモデルを読み込み
     }
 
@@ -109,6 +138,28 @@ class TrimBoxManipulator {
         } catch (error) {
             console.error('カスタム矢印モデルの読み込みに失敗:', error);
             this.customArrowLoaded = false;
+        }
+    }
+
+    async loadCustomArrowCornModel() {
+        try {
+            const loader = new OBJLoader();
+            this.customArrowCornModel = await new Promise((resolve, reject) => {
+                loader.load('OBJ/arrow_corn.obj', resolve, undefined, reject);
+            });
+            
+            // モデルのスケールとマテリアルを設定
+            this.customArrowCornModel.traverse((child) => {
+                if (child.isMesh) {
+                    child.material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+                }
+            });
+            
+            this.customArrowCornLoaded = true;
+            console.log('カスタム矢印モデル (arrow_corn.obj) の読み込み完了');
+        } catch (error) {
+            console.error('arrow_cornモデルの読み込みに失敗:', error);
+            this.customArrowCornLoaded = false;
         }
     }
 
@@ -479,14 +530,24 @@ class TrimBoxManipulator {
     }
 
     createArrowGeometry(faceData = null) {
-        // カスタム矢印モデルが読み込まれていない場合はエラー
-        if (!this.customArrowModel || !this.customArrowLoaded) {
-            console.error('カスタム矢印モデルが読み込まれていません');
-            return new THREE.Group(); // 空のグループを返す
+        // 選択された矢印モデルを取得
+        let arrowModel = null;
+        if (this.arrowType === 'arrow_corn') {
+            if (!this.customArrowCornModel || !this.customArrowCornLoaded) {
+                console.error('arrow_cornモデルが読み込まれていません');
+                return new THREE.Group(); // 空のグループを返す
+            }
+            arrowModel = this.customArrowCornModel;
+        } else {
+            if (!this.customArrowModel || !this.customArrowLoaded) {
+                console.error('カスタム矢印モデルが読み込まれていません');
+                return new THREE.Group(); // 空のグループを返す
+            }
+            arrowModel = this.customArrowModel;
         }
         
         const arrowGroup = new THREE.Group();
-        const customArrow = this.customArrowModel.clone();
+        const customArrow = arrowModel.clone();
         
         // スケールを適用
         customArrow.scale.set(this.customArrowScale, this.customArrowScale, this.customArrowScale);
@@ -502,24 +563,60 @@ class TrimBoxManipulator {
         
         arrowGroup.add(customArrow);
         
-        // 透明なクリック可能な領域を追加（矢印より大きく）
-        const clickableRadius = this.customArrowScale * 3.0; // 矢印の3倍の半径
-        const clickableHeight = this.customArrowScale * 10.0; // 矢印の10倍の高さ
-        const clickableGeometry = new THREE.CylinderGeometry(clickableRadius, clickableRadius, clickableHeight, 8);
-        const clickableMaterial = new THREE.MeshBasicMaterial({
-            color: 0xffffff,
-            transparent: true,
-            opacity: 0, // 完全に透明
-            depthTest: true,
-            depthWrite: false
-        });
-        const clickableMesh = new THREE.Mesh(clickableGeometry, clickableMaterial);
-        clickableMesh.renderOrder = 99; // 矢印本体より少し低い順序
-        
-        // クリック可能領域にもuserDataを設定（レイキャスト用）
-        clickableMesh.userData.isClickableArea = true;
-        
-        arrowGroup.add(clickableMesh);
+        // クリック可能な領域を追加
+        if (this.arrowType === 'arrow_corn') {
+            // arrow_cornの場合: 直方体のクリック可能領域を作成（透明度50%）
+            // arrow_cornモデルのバウンディングボックスを取得
+            const box = new THREE.Box3().setFromObject(customArrow);
+            const size = box.getSize(new THREE.Vector3());
+            const center = box.getCenter(new THREE.Vector3());
+            
+            // マージンを追加してクリックしやすくする（各軸ごとに調整可能）
+            const marginX = this.arrowCornClickableMargin.x;
+            const marginY = this.arrowCornClickableMargin.y;
+            const marginZ = this.arrowCornClickableMargin.z;
+            const clickableWidth = size.x * (1 + marginX);
+            const clickableHeight = size.y * (1 + marginY);
+            const clickableDepth = size.z * (1 + marginZ);
+            
+            const clickableGeometry = new THREE.BoxGeometry(clickableWidth, clickableHeight, clickableDepth);
+            const clickableMaterial = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: this.arrowCornClickableVisible ? 0.5 : 0, // 表示状態に応じて透明度を変更
+                depthTest: true,
+                depthWrite: false,
+                visible: true // レイキャスト用に常にvisibleをtrueに（見た目はopacityで制御）
+            });
+            const clickableMesh = new THREE.Mesh(clickableGeometry, clickableMaterial);
+            clickableMesh.position.copy(center); // モデルの中心に配置
+            clickableMesh.renderOrder = 99; // 矢印本体より少し低い順序
+            
+            // クリック可能領域にもuserDataを設定（レイキャスト用）
+            clickableMesh.userData.isClickableArea = true;
+            clickableMesh.userData.isArrowCornClickable = true; // arrow_corn用のクリック可能領域であることを示す
+            
+            arrowGroup.add(clickableMesh);
+        } else {
+            // arrowの場合: 円柱のクリック可能領域（従来通り）
+            const clickableRadius = this.customArrowScale * 3.0; // 矢印の3倍の半径
+            const clickableHeight = this.customArrowScale * 10.0; // 矢印の10倍の高さ
+            const clickableGeometry = new THREE.CylinderGeometry(clickableRadius, clickableRadius, clickableHeight, 8);
+            const clickableMaterial = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0, // 完全に透明
+                depthTest: true,
+                depthWrite: false
+            });
+            const clickableMesh = new THREE.Mesh(clickableGeometry, clickableMaterial);
+            clickableMesh.renderOrder = 99; // 矢印本体より少し低い順序
+            
+            // クリック可能領域にもuserDataを設定（レイキャスト用）
+            clickableMesh.userData.isClickableArea = true;
+            
+            arrowGroup.add(clickableMesh);
+        }
         
         return arrowGroup;
     }
@@ -649,6 +746,18 @@ class TrimBoxManipulator {
                     }
                 }
                 break;
+        }
+        
+        // arrow_cornの場合のみ、追加の回転オフセットを適用
+        if (this.arrowType === 'arrow_corn') {
+            const faceKey = `${axis}${direction > 0 ? '+' : '-'}`;
+            const rotationOffset = this.arrowCornRotations[faceKey];
+            if (rotationOffset) {
+                // 度をラジアンに変換して追加
+                handle.rotation.x += rotationOffset.x * (Math.PI / 180);
+                handle.rotation.y += rotationOffset.y * (Math.PI / 180);
+                handle.rotation.z += rotationOffset.z * (Math.PI / 180);
+            }
         }
     }
     
@@ -2777,11 +2886,103 @@ class TrimBoxManipulator {
         console.log('カスタム矢印スケール設定:', this.customArrowScale);
     }
 
+    setArrowType(type) {
+        if (type !== 'arrow' && type !== 'arrow_corn') {
+            console.error('無効な矢印タイプ:', type);
+            return;
+        }
+        this.arrowType = type;
+        this.updateArrowSizes(); // 矢印を再作成
+        console.log('矢印タイプ変更:', this.arrowType);
+    }
+
+    setArrowCornRotation(faceKey, axis, degrees) {
+        // faceKey: 'x+', 'x-', 'y+', 'y-', 'z+', 'z-'
+        // axis: 'x', 'y', 'z'
+        // degrees: 回転角度（度単位、90度刻み）
+        if (!this.arrowCornRotations[faceKey]) {
+            console.error('無効な面キー:', faceKey);
+            return;
+        }
+        if (axis !== 'x' && axis !== 'y' && axis !== 'z') {
+            console.error('無効な軸:', axis);
+            return;
+        }
+        
+        // 90度刻みに制限
+        const normalizedDegrees = Math.round(degrees / 90) * 90;
+        this.arrowCornRotations[faceKey][axis] = normalizedDegrees;
+        
+        // すべての面ハンドルの向きを更新（visible/invisible問わず）
+        this.faceHandles.forEach(handle => {
+            if (handle && handle.userData) {
+                this.orientArrowHandle(handle, handle.userData);
+            }
+        });
+        
+        console.log('arrow_corn回転設定:', faceKey, axis, normalizedDegrees);
+    }
+
+    setArrowCornPositionOffset(offset) {
+        // arrow_corn専用の位置オフセットを設定（すべての矢印を同じ距離だけ外側に移動）
+        this.arrowCornPositionOffset = offset;
+        
+        // 矢印の位置を更新
+        this.updateHandlePositions();
+        
+        console.log('arrow_corn位置オフセット設定:', offset);
+    }
+
+    setArrowCornClickableMargin(axis, margin) {
+        // arrow_corn専用のクリック可能領域のマージンを設定（各軸ごと）
+        // axis: 'x', 'y', 'z'
+        // margin: 0～10.0の範囲
+        if (axis !== 'x' && axis !== 'y' && axis !== 'z') {
+            console.error('無効な軸:', axis);
+            return;
+        }
+        
+        this.arrowCornClickableMargin[axis] = Math.max(0, Math.min(10.0, margin)); // 0～10.0の範囲に制限
+        
+        // すべてのarrow_corn矢印のクリック可能領域を再作成
+        if (this.arrowType === 'arrow_corn' && this.trimBox) {
+            this.updateArrowSizes();
+        }
+        
+        console.log('arrow_cornクリック可能領域マージン設定:', axis, this.arrowCornClickableMargin[axis]);
+    }
+
+    setArrowCornClickableVisible(visible) {
+        // arrow_corn専用のクリック可能領域の表示状態を設定
+        this.arrowCornClickableVisible = visible;
+        
+        // すべてのarrow_corn矢印のクリック可能領域の表示状態を更新
+        this.faceHandles.forEach(handle => {
+            if (handle && handle.children) {
+                handle.children.forEach(child => {
+                    if (child.userData && child.userData.isArrowCornClickable && child.material) {
+                        child.material.opacity = visible ? 0.5 : 0;
+                        child.material.needsUpdate = true;
+                    }
+                });
+            }
+        });
+        
+        console.log('arrow_cornクリック可能領域表示状態:', visible);
+    }
+
     getArrowPlacementOffset() {
         const pivotCompensation = (this.customArrowBoundingBox && this.customArrowLoaded)
             ? this.customArrowPivotOffset * this.customArrowScale
             : 0;
-        return this.arrowOffset - pivotCompensation;
+        let offset = this.arrowOffset - pivotCompensation;
+        
+        // arrow_cornの場合、追加の位置オフセットを適用
+        if (this.arrowType === 'arrow_corn') {
+            offset += this.arrowCornPositionOffset;
+        }
+        
+        return offset;
     }
     
     setZArrowRotationEnabled(enabled) {
