@@ -1153,6 +1153,12 @@ class PLYViewer {
                         faceArrowInnerOffsetPanel.style.display = currentType === 'arrow_corn' ? 'flex' : 'none';
                     }
                     
+                    // 平行移動の矢印の追従ハンドル選択パネルの表示/非表示を切り替え
+                    const axisHandleFollowHandlePanel = document.getElementById('axisHandleFollowHandlePanel');
+                    if (axisHandleFollowHandlePanel) {
+                        axisHandleFollowHandlePanel.style.display = currentType === 'arrow_corn' ? 'flex' : 'none';
+                    }
+                    
                     if (currentType === 'arrow_corn') {
                         // arrow_cornの場合、現在の表示状態をUIに反映
                         if (currentType === 'arrow_corn') {
@@ -2428,6 +2434,12 @@ class PLYViewer {
                     this.setFaceArrowInnerOffset(defaultValue);
                 }
             }
+        }
+        
+        // 平行移動の矢印の追従ハンドル選択パネルの表示/非表示を切り替え
+        const axisHandleFollowHandlePanel = document.getElementById('axisHandleFollowHandlePanel');
+        if (axisHandleFollowHandlePanel) {
+            axisHandleFollowHandlePanel.style.display = type === 'arrow_corn' ? 'flex' : 'none';
         }
         
         console.log('矢印タイプ変更:', type);
