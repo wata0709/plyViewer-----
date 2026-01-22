@@ -668,15 +668,22 @@ class TrimBoxManipulator {
                     child.material = new THREE.MeshBasicMaterial({
                         color: 0xffffff, // 白
                         transparent: true,
-                        opacity: 0.3 // 透明度30%
+                        opacity: 0.3, // 透明度30%
+                        depthTest: false,  // 深度テストを無効にして常に最前面に表示
+                        depthWrite: false  // 深度バッファに書き込まない
                     });
                     // 元の色をuserDataに保存（選択時に使用）
                     child.userData.originalColor = axisData.color;
                     child.userData.axis = axisData.axis;
+                    // レンダリング順序を高い値に設定して常に最前面に表示
+                    child.renderOrder = 10000;
                 }
             });
 
             arrowGroup.add(customArrow);
+            
+            // arrowGroup自体にもレンダリング順序を設定
+            arrowGroup.renderOrder = 10000;
 
             // クリック可能領域を作成（矢印を中心に囲む直方体）
             const box = new THREE.Box3().setFromObject(customArrow);
@@ -3392,6 +3399,11 @@ class TrimBoxManipulator {
             handle.traverse((child) => {
                 if (child.isMesh && child.material && !child.userData.isAxisHandleClickable) {
                     // クリック可能領域ではないメッシュのみ更新
+                    // レンダリング順序と深度テストの設定を維持
+                    child.material.depthTest = false;
+                    child.material.depthWrite = false;
+                    child.renderOrder = 10000;
+                    
                     if (isSelected) {
                         // 選択時：水色（面選択時の矢印と同じ色）、不透明度100%
                         child.material.color.setHex(selectedColor);
