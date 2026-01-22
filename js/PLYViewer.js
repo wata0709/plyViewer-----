@@ -304,6 +304,11 @@ class PLYViewer {
                 e.target.value = value.toFixed(1);
                 this.setFaceArrowInnerOffset(value);
             });
+            
+            // 初期値を設定
+            if (this.trimBoxManipulator) {
+                this.setFaceArrowInnerOffset(1.1);
+            }
         }
 
         // 平行移動の矢印の位置調整UIのイベントリスナー
