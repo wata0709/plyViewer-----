@@ -15,6 +15,7 @@ class TrimBoxManipulator {
         this.edgeHandles = []; // エッジのハンドル
         this.cornerHandles = []; // 頂点のハンドル
         this.rotationAxes = []; // 回転軸表示用
+        this.axisHandles = []; // 軸制約移動用のハンドル（X、Y、Z軸矢印）
         this.initialEdgeRotations = []; // エッジハンドルの初期回転を保存
         this.showAxes = false; // 軸表示フラグ
         this.isDragging = false;
@@ -31,6 +32,33 @@ class TrimBoxManipulator {
         this.longPressDuration = 200; // 200ms で長押し判定
         this.isLongPressActive = false;
         this.clickedFaceIntersection = null;
+        
+        // 軸制約移動用の変数
+        this.activeAxis = null; // 現在アクティブな軸: 'x', 'y', 'z', または null（自由移動）
+        this.hoveredAxisHandle = null; // ホバー中の平行移動の矢印
+        
+        // 平行移動の矢印が追従するハンドル
+        // followHandleType: 'edge' または 'corner'
+        // followHandleIndex: エッジハンドルの場合0-3、頂点ハンドルの場合corner名（例: 'max-max-max'）
+        this.followHandleType = 'edge'; // デフォルトはエッジハンドル
+        this.followHandleIndex = 3; // デフォルトは左手前のエッジハンドル（index 3）
+        
+        // 平行移動の矢印の回転オフセット（度単位、各軸ごとにXYZ軸）
+        // キー: 'x', 'y', 'z'
+        // 現在の設定を保持：Y軸Y回転-90°、Z軸Z回転90°
+        this.axisHandleRotations = {
+            'x': { x: 0, y: 0, z: 0 },
+            'y': { x: 0, y: -90, z: 0 },
+            'z': { x: 0, y: 0, z: 90 }
+        };
+        
+        // 平行移動の矢印の位置オフセット（各軸ごとにXYZ方向のオフセット）
+        // キー: 'x', 'y', 'z'
+        this.axisHandlePositions = {
+            'x': { x: -0.48, y: -0.50, z: 0.57 },
+            'y': { x: 0.57, y: 0.50, z: 0 },
+            'z': { x: 0.00, y: -1.07, z: -0.52 }
+        };
         
         // キー状態追跡
         this.isCommandPressed = false;
@@ -61,9 +89,11 @@ class TrimBoxManipulator {
         // カスタム矢印関連
         this.customArrowModel = null;    // カスタムOBJモデル（arrow.obj）
         this.customArrowCornModel = null; // カスタムOBJモデル（arrow_corn.obj）
+        this.customArrowParallelMovementModel = null; // カスタムOBJモデル（arrow_corn_parallelMovement.obj）
         this.customArrowScale = 0.150;    // カスタム矢印のスケール
         this.customArrowLoaded = false;  // カスタム矢印が読み込まれたかどうか
         this.customArrowCornLoaded = false; // arrow_cornが読み込まれたかどうか
+        this.customArrowParallelMovementLoaded = false; // arrow_corn_parallelMovementが読み込まれたかどうか
         this.arrowType = 'arrow'; // 現在の矢印タイプ: 'arrow' または 'arrow_corn'
         
         // arrow_corn専用の回転オフセット（度単位、各面ごとにXYZ軸）
@@ -116,6 +146,7 @@ class TrimBoxManipulator {
         this.setupEventListeners();
         this.loadCustomArrowModel(); // カスタム矢印モデルを読み込み
         this.loadCustomArrowCornModel(); // arrow_cornモデルを読み込み
+        this.loadCustomArrowParallelMovementModel(); // arrow_corn_parallelMovementモデルを読み込み
         this.loadRotaryHandleModels(); // 回転ハンドルモデルを読み込み
     }
 
@@ -160,6 +191,33 @@ class TrimBoxManipulator {
         } catch (error) {
             console.error('arrow_cornモデルの読み込みに失敗:', error);
             this.customArrowCornLoaded = false;
+        }
+    }
+
+    async loadCustomArrowParallelMovementModel() {
+        try {
+            const loader = new OBJLoader();
+            this.customArrowParallelMovementModel = await new Promise((resolve, reject) => {
+                loader.load('OBJ/arrow_corn_parallelMovement.obj', resolve, undefined, reject);
+            });
+            
+            // モデルのスケールとマテリアルを設定
+            this.customArrowParallelMovementModel.traverse((child) => {
+                if (child.isMesh) {
+                    child.material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+                }
+            });
+            
+            this.customArrowParallelMovementLoaded = true;
+            console.log('カスタム矢印モデル (arrow_corn_parallelMovement.obj) の読み込み完了');
+            
+            // モデルが読み込まれたら、軸ハンドルを作成
+            if (this.trimBox) {
+                this.createAxisHandles();
+            }
+        } catch (error) {
+            console.error('arrow_corn_parallelMovementモデルの読み込みに失敗:', error);
+            this.customArrowParallelMovementLoaded = false;
         }
     }
 
@@ -241,6 +299,7 @@ class TrimBoxManipulator {
         this.activeHandle = null;
         this.hoveredHandle = null;
         this.hoveredFaceHandle = null;
+        this.hoveredAxisHandle = null;
         this.isDragging = false;
         
         // モデルの中心を取得（サイズ計算用）
@@ -346,11 +405,14 @@ class TrimBoxManipulator {
         this.faceHandles = [];
         this.edgeHandles = [];
         this.cornerHandles = [];
+        this.axisHandles = [];
         this.initialEdgeRotations = []; // 初期回転をリセット
         this.activeHandle = null; // アクティブなハンドルをリセット
         this.hoveredHandle = null; // ホバー中のハンドルをリセット
         this.hoveredFaceHandle = null; // ホバー中の面ハンドルをリセット
+        this.hoveredAxisHandle = null; // ホバー中の平行移動の矢印をリセット
         this.selectedFace = null; // 選択された面をリセット
+        this.activeAxis = null; // 軸制約をリセット
         
         const box = new THREE.Box3().setFromObject(this.trimBox);
         const min = box.min;
@@ -506,6 +568,9 @@ class TrimBoxManipulator {
         // 回転軸を作成（初期は非表示）
         this.createRotationAxes();
         
+        // 軸制約移動用のハンドルを作成
+        this.createAxisHandles();
+        
         // ハンドルの位置と向きを更新（デフォルトの個別回転設定を適用）
         this.updateHandlePositions();
         
@@ -527,6 +592,204 @@ class TrimBoxManipulator {
                 };
             }
         });
+    }
+
+    getFollowHandlePosition() {
+        // 追従するハンドルの位置を取得
+        if (this.followHandleType === 'edge') {
+            if (this.edgeHandles.length <= this.followHandleIndex) {
+                console.warn('エッジハンドルが不足しています');
+                return null;
+            }
+            return this.edgeHandles[this.followHandleIndex].position.clone();
+        } else if (this.followHandleType === 'corner') {
+            const cornerHandle = this.cornerHandles.find(h => h.userData && h.userData.corner === this.followHandleIndex);
+            if (!cornerHandle) {
+                console.warn('頂点ハンドルが見つかりません:', this.followHandleIndex);
+                return null;
+            }
+            return cornerHandle.position.clone();
+        }
+        return null;
+    }
+
+    createAxisHandles() {
+        // 既存の軸ハンドルを削除
+        this.axisHandles.forEach(handle => {
+            if (handle && handle.parent) {
+                this.scene.remove(handle);
+            }
+        });
+        this.axisHandles = [];
+
+        // arrow_corn_parallelMovementモデルが読み込まれていない場合はスキップ
+        if (!this.customArrowParallelMovementModel || !this.customArrowParallelMovementLoaded) {
+            console.log('arrow_corn_parallelMovementモデルが読み込まれていないため、軸ハンドルを作成しません');
+            return;
+        }
+
+        // 追従するハンドルの位置を取得
+        const basePosition = this.getFollowHandlePosition();
+        if (!basePosition) {
+            console.warn('追従するハンドルの位置を取得できません');
+            return;
+        }
+
+        // 箱のサイズを取得
+        const boxSize = new THREE.Vector3();
+        this.trimBox.geometry.parameters ? 
+            boxSize.set(
+                this.trimBox.geometry.parameters.width / 2,
+                this.trimBox.geometry.parameters.height / 2,
+                this.trimBox.geometry.parameters.depth / 2
+            ) : boxSize.setFromMatrixScale(this.trimBox.matrixWorld);
+
+        // 箱の上面中央に配置（Y軸方向にオフセット）
+        const offsetY = boxSize.y + 0.5; // 箱の上面から0.5単位上に配置
+
+        // X、Y、Z軸の3つの矢印を作成
+        const axes = [
+            { axis: 'x', direction: new THREE.Vector3(1, 0, 0), color: 0xff0000 }, // 赤（X軸）
+            { axis: 'y', direction: new THREE.Vector3(0, 1, 0), color: 0x00ff00 }, // 緑（Y軸）
+            { axis: 'z', direction: new THREE.Vector3(0, 0, 1), color: 0x0000ff }  // 青（Z軸）
+        ];
+
+        axes.forEach((axisData, index) => {
+            // 矢印モデルをクローン
+            const arrowGroup = new THREE.Group();
+            const customArrow = this.customArrowParallelMovementModel.clone();
+
+            // スケール設定
+            customArrow.scale.set(this.customArrowScale, this.customArrowScale, this.customArrowScale);
+
+            // マテリアルを設定（デフォルトは白、透明度30%）
+            customArrow.traverse((child) => {
+                if (child.isMesh) {
+                    child.material = new THREE.MeshBasicMaterial({
+                        color: 0xffffff, // 白
+                        transparent: true,
+                        opacity: 0.3, // 透明度30%
+                        depthTest: false,  // 深度テストを無効にして常に最前面に表示
+                        depthWrite: false  // 深度バッファに書き込まない
+                    });
+                    // 元の色をuserDataに保存（選択時に使用）
+                    child.userData.originalColor = axisData.color;
+                    child.userData.axis = axisData.axis;
+                    // レンダリング順序を高い値に設定して常に最前面に表示
+                    child.renderOrder = 10000;
+                }
+            });
+
+            arrowGroup.add(customArrow);
+            
+            // arrowGroup自体にもレンダリング順序を設定
+            arrowGroup.renderOrder = 10000;
+
+            // クリック可能領域を作成（矢印を中心に囲む直方体）
+            const box = new THREE.Box3().setFromObject(customArrow);
+            const size = box.getSize(new THREE.Vector3());
+            const center = box.getCenter(new THREE.Vector3());
+            
+            // クリック可能領域のサイズを拡張（マージンを追加）
+            const margin = 0.2; // 各方向に0.2のマージンを追加
+            const clickableGeometry = new THREE.BoxGeometry(
+                size.x + margin * 2,
+                size.y + margin * 2,
+                size.z + margin * 2
+            );
+            const clickableMaterial = new THREE.MeshBasicMaterial({
+                color: axisData.color,
+                transparent: true,
+                opacity: 0, // 透明度0%（完全に透明だが当たり判定は残る）
+                side: THREE.DoubleSide,
+                depthTest: false,
+                depthWrite: false
+            });
+            const clickableMesh = new THREE.Mesh(clickableGeometry, clickableMaterial);
+            clickableMesh.position.copy(center);
+            clickableMesh.userData.isAxisHandleClickable = true;
+            clickableMesh.userData.isAxisHandle = true;
+            arrowGroup.add(clickableMesh);
+
+            // 位置を設定（追従ハンドルの位置 + 位置オフセット）
+            const positionOffset = this.axisHandlePositions[axisData.axis] || { x: 0, y: 0, z: 0 };
+            const boxRotation = this.trimBox.rotation;
+            
+            // Y軸の矢印は特別処理：ボックスの上面に追従しつつ、始点がずれないようにする
+            // X軸・Z軸の矢印は従来通りoffsetYを適用
+            let localPosition;
+            if (axisData.axis === 'y') {
+                // Y軸矢印：ボックスの上面に追従
+                // ボックスの上面までのオフセット（ローカル座標系で計算、回転を適用）
+                const topOffset = new THREE.Vector3(0, boxSize.y, 0);
+                topOffset.applyEuler(boxRotation);
+                
+                // positionOffsetはワールド座標系で追加（回転させない）
+                const worldOffset = new THREE.Vector3(
+                    positionOffset.x,
+                    positionOffset.y,
+                    positionOffset.z
+                );
+                
+                arrowGroup.position.copy(basePosition.clone().add(topOffset).add(worldOffset));
+            } else {
+                // X軸・Z軸矢印：従来通りの処理
+                localPosition = new THREE.Vector3(
+                    positionOffset.x,
+                    offsetY + positionOffset.y,
+                    positionOffset.z
+                );
+                // 箱の回転を考慮して位置を変換
+                localPosition.applyEuler(boxRotation);
+                localPosition.add(basePosition);
+                arrowGroup.position.copy(localPosition);
+            }
+
+            // 矢印の向きを設定
+            arrowGroup.rotation.set(0, 0, 0);
+            const axisDirection = axisData.direction.clone();
+            axisDirection.applyEuler(boxRotation);
+            
+            // 矢印を軸方向に向ける
+            arrowGroup.lookAt(arrowGroup.position.clone().add(axisDirection));
+
+            // arrow_corn_parallelMovementの向きを調整（必要に応じて）
+            // デフォルトでは矢印が正の方向を向くように設定
+            if (axisData.axis === 'x') {
+                arrowGroup.rotateY(Math.PI / 2);
+            } else if (axisData.axis === 'z') {
+                arrowGroup.rotateX(-Math.PI / 2);
+            }
+            // Y軸はそのまま（上向き）
+
+            // 回転オフセットを適用
+            const rotationOffset = this.axisHandleRotations[axisData.axis];
+            if (rotationOffset) {
+                arrowGroup.rotateX(rotationOffset.x * Math.PI / 180);
+                arrowGroup.rotateY(rotationOffset.y * Math.PI / 180);
+                arrowGroup.rotateZ(rotationOffset.z * Math.PI / 180);
+            }
+
+            // userDataを設定
+            arrowGroup.userData = {
+                type: 'axis',
+                axis: axisData.axis,
+                color: axisData.color
+            };
+
+            this.scene.add(arrowGroup);
+            this.handles.push(arrowGroup);
+            this.axisHandles.push(arrowGroup);
+
+            console.log('軸ハンドル作成:', {
+                axis: axisData.axis,
+                position: arrowGroup.position.toArray(),
+                color: axisData.color.toString(16)
+            });
+        });
+        
+        // 初期状態の見た目を設定
+        this.updateAxisHandleAppearance();
     }
 
     createArrowGeometry(faceData = null) {
@@ -761,11 +1024,107 @@ class TrimBoxManipulator {
         }
     }
     
+    // ボックスの回転を考慮して矢印の向きを設定
+    orientArrowHandleWithBoxRotation(handle, handleData, boxRotation) {
+        const { axis, direction } = handleData;
+        
+        // ボックスの回転をクォータニオンに変換
+        const boxQuaternion = new THREE.Quaternion().setFromEuler(boxRotation);
+        
+        // 矢印の位置からカメラへのベクトル（ワールド座標系）
+        const arrowPos = handle.position;
+        const cameraPos = this.camera.position;
+        const toCamera = new THREE.Vector3().subVectors(cameraPos, arrowPos);
+        
+        // カメラ方向をボックスのローカル座標系に変換
+        const inverseBoxQuaternion = boxQuaternion.clone().invert();
+        const localToCamera = toCamera.clone().applyQuaternion(inverseBoxQuaternion);
+        
+        // ローカル座標系で基本の向きを設定
+        const localRotation = new THREE.Euler(0, 0, 0);
+        
+        switch (axis) {
+            case 'x':
+                // X軸方向の矢印
+                if (direction > 0) {
+                    localRotation.z = -Math.PI / 2; // +X方向
+                } else {
+                    localRotation.z = Math.PI / 2;  // -X方向
+                }
+                // X軸周りでカメラに向ける
+                const angleX = Math.atan2(localToCamera.z, localToCamera.y) + Math.PI / 2;
+                localRotation.x = angleX;
+                break;
+                
+            case 'y':
+                // Y軸方向の矢印
+                if (direction > 0) {
+                    // +Y方向（上向き）デフォルト
+                } else {
+                    localRotation.z = Math.PI; // -Y方向（下向き）
+                }
+                // Y軸周りでカメラに向ける
+                const angleY = Math.atan2(localToCamera.x, localToCamera.z);
+                localRotation.y = angleY;
+                break;
+                
+            case 'z':
+                // Z軸方向の矢印
+                if (direction > 0) {
+                    localRotation.x = Math.PI / 2;  // +Z方向
+                } else {
+                    localRotation.x = -Math.PI / 2; // -Z方向
+                }
+                
+                // Z軸矢印の回転が有効な場合
+                if (this.zArrowRotationEnabled) {
+                    switch (this.zArrowRotationAxis) {
+                        case 'x':
+                            const angleZX = -Math.atan2(localToCamera.y, localToCamera.z);
+                            localRotation.x += angleZX;
+                            break;
+                        case 'y':
+                            const angleZY = -Math.atan2(localToCamera.x, localToCamera.z);
+                            localRotation.y = angleZY;
+                            break;
+                        case 'z':
+                            const angleZZ = -Math.atan2(localToCamera.y, localToCamera.x);
+                            localRotation.z = angleZZ;
+                            break;
+                    }
+                }
+                break;
+        }
+        
+        // arrow_cornの場合のみ、追加の回転オフセットを適用
+        if (this.arrowType === 'arrow_corn') {
+            const faceKey = `${axis}${direction > 0 ? '+' : '-'}`;
+            const rotationOffset = this.arrowCornRotations[faceKey];
+            if (rotationOffset) {
+                localRotation.x += rotationOffset.x * (Math.PI / 180);
+                localRotation.y += rotationOffset.y * (Math.PI / 180);
+                localRotation.z += rotationOffset.z * (Math.PI / 180);
+            }
+        }
+        
+        // ローカル回転をクォータニオンに変換
+        const localQuaternion = new THREE.Quaternion().setFromEuler(localRotation);
+        
+        // ボックスの回転を適用（ローカル回転 × ボックス回転）
+        const finalQuaternion = new THREE.Quaternion();
+        finalQuaternion.multiplyQuaternions(boxQuaternion, localQuaternion);
+        
+        // 最終的な回転をオイラー角に変換して適用
+        const finalRotation = new THREE.Euler().setFromQuaternion(finalQuaternion);
+        handle.rotation.copy(finalRotation);
+    }
+    
     // すべての矢印をカメラに向ける（アニメーションループで呼ばれる）
     updateArrowOrientations() {
+        const boxRotation = this.trimBox ? this.trimBox.rotation.clone() : new THREE.Euler();
         this.faceHandles.forEach(handle => {
             if (handle.visible && handle.userData) {
-                this.orientArrowHandle(handle, handle.userData);
+                this.orientArrowHandleWithBoxRotation(handle, handle.userData, boxRotation);
             }
         });
     }
@@ -946,7 +1305,28 @@ class TrimBoxManipulator {
             const userData = this.activeHandle.userData;
             console.log('ハンドル操作開始:', userData);
             this.initialBoxBounds = new THREE.Box3().setFromObject(this.trimBox);
+            
+            // ローカル座標系でのボックスサイズと位置を保存（回転を考慮した操作用）
+            const params = this.trimBox.geometry.parameters;
+            this.initialLocalSize = new THREE.Vector3(params.width, params.height, params.depth);
+            this.initialBoxCenter = this.trimBox.position.clone();
+            this.initialBoxQuaternion = this.trimBox.quaternion.clone();
             this.initialBoxPosition = this.trimBox.position.clone(); // 箱移動用の初期位置を保存
+            
+            // 軸ハンドルがクリックされた場合
+            if (userData.type === 'axis') {
+                console.log('軸ハンドルクリック:', userData.axis);
+                this.activeAxis = userData.axis;
+                this.updateAxisHandleAppearance(); // 選択状態の見た目を更新
+                this.isDragging = true;
+                this.isLongPressActive = true; // 長押しモードとして扱う
+                this.activeHandle = { userData: { type: 'boxMove', axis: userData.axis } };
+                this.renderer.domElement.style.cursor = 'grabbing';
+                this.setBoxMoveColors(true);
+                this.disableOrbitControls();
+                this.showTrimmingInfo();
+                return; // 早期リターン
+            }
             
             if (userData.type === 'corner') {
                 this.initialCornerPositions = this.getCornerPositions();
@@ -1213,6 +1593,16 @@ class TrimBoxManipulator {
             
             // ホバー状態の変更処理
             this.updateHoverState(newHoveredHandle);
+            
+            // 軸ハンドルのホバー状態を更新
+            let newHoveredAxisHandle = null;
+            if (newHoveredHandle && newHoveredHandle.userData && newHoveredHandle.userData.type === 'axis') {
+                newHoveredAxisHandle = newHoveredHandle;
+            }
+            if (this.hoveredAxisHandle !== newHoveredAxisHandle) {
+                this.hoveredAxisHandle = newHoveredAxisHandle;
+                this.updateAxisHandleAppearance();
+            }
 
             // 面またはその矢印にマウスがある間は該当矢印を表示し続ける
             let desiredFaceHandle = null;
@@ -1325,6 +1715,9 @@ class TrimBoxManipulator {
         this.isDragging = false;
         this.isLongPressActive = false;
         this.clickedFaceIntersection = null;
+        this.activeAxis = null; // 軸制約をリセット
+        this.hoveredAxisHandle = null; // ホバー状態をリセット
+        this.updateAxisHandleAppearance(); // 選択解除時の見た目を更新
         this.renderer.domElement.style.cursor = 'default';
 
         // 面のハイライトをクリア
@@ -1593,9 +1986,10 @@ class TrimBoxManipulator {
         
         console.log('箱移動モード開始');
         
-        // 箱移動モードを開始
+        // 箱移動モードを開始（自由移動）
         this.isDragging = true;
         this.isLongPressActive = true;
+        this.activeAxis = null; // 自由移動
         this.activeHandle = { userData: { type: 'boxMove' } };
         this.initialMousePos.copy(this.mouse);
         this.initialBoxPosition = this.trimBox.position.clone();
@@ -1748,41 +2142,33 @@ class TrimBoxManipulator {
     }
 
     updateFaceSize(userData, deltaX, deltaY) {
-        // 面操作：対面を固定基点とした面移動
+        // 面操作：対面を固定基点とした面移動（ローカル座標系で処理）
         
-        const initialMin = this.initialBoxBounds.min.clone();
-        const initialMax = this.initialBoxBounds.max.clone();
-        const initialCenter = this.initialBoxBounds.getCenter(new THREE.Vector3());
+        // ローカル座標系でのサイズを取得
+        const localHalfSize = this.initialLocalSize.clone().multiplyScalar(0.5);
+        const boxCenter = this.initialBoxCenter.clone();
+        const boxQuaternion = this.initialBoxQuaternion.clone();
         
-        // 選択した面の中心点を計算
-        const faceCenter = new THREE.Vector3();
+        // 選択した面のローカル座標での中心点
+        const localFaceCenter = new THREE.Vector3();
         switch (userData.axis) {
             case 'x':
-                faceCenter.set(
-                    userData.direction > 0 ? initialMax.x : initialMin.x,
-                    initialCenter.y,
-                    initialCenter.z
-                );
+                localFaceCenter.set(userData.direction * localHalfSize.x, 0, 0);
                 break;
             case 'y':
-                faceCenter.set(
-                    initialCenter.x,
-                    userData.direction > 0 ? initialMax.y : initialMin.y,
-                    initialCenter.z
-                );
+                localFaceCenter.set(0, userData.direction * localHalfSize.y, 0);
                 break;
             case 'z':
-                faceCenter.set(
-                    initialCenter.x,
-                    initialCenter.y,
-                    userData.direction > 0 ? initialMax.z : initialMin.z
-                );
+                localFaceCenter.set(0, 0, userData.direction * localHalfSize.z);
                 break;
         }
         
+        // 面のワールド座標を計算
+        const worldFaceCenter = localFaceCenter.clone().applyQuaternion(boxQuaternion).add(boxCenter);
+        
         // カメラのビュー平面でのマウス移動を3D空間の移動に変換
         const camera = this.camera;
-        const distance = camera.position.distanceTo(faceCenter);
+        const distance = camera.position.distanceTo(worldFaceCenter);
         
         // カメラの右方向と上方向ベクトル
         const cameraRight = new THREE.Vector3();
@@ -1796,7 +2182,7 @@ class TrimBoxManipulator {
         const viewportWidth = viewportHeight * camera.aspect;
         
         // マウス移動量をワールド座標での移動量に変換（感度調整）
-        const sensitivity = 0.2; // 面操作の感度を上げて反応性を向上
+        const sensitivity = 0.2;
         const worldDeltaX = (deltaX * sensitivity) * viewportWidth;
         const worldDeltaY = (deltaY * sensitivity) * viewportHeight;
         
@@ -1805,68 +2191,69 @@ class TrimBoxManipulator {
         worldMovement.addScaledVector(cameraRight, worldDeltaX);
         worldMovement.addScaledVector(cameraUp, worldDeltaY);
         
-        // 新しい面の位置を計算
-        const newFaceCenter = faceCenter.clone().add(worldMovement);
+        // ワールド移動量をボックスのローカル座標系に変換
+        const inverseQuaternion = boxQuaternion.clone().invert();
+        const localMovement = worldMovement.clone().applyQuaternion(inverseQuaternion);
         
-        // 対面を固定基点として新しいmin/maxを計算
-        const newMin = initialMin.clone();
-        const newMax = initialMax.clone();
-        const minSize = 0.1; // 最小サイズ
-        
+        // 操作軸方向の移動量のみを抽出
+        let axisMovement = 0;
         switch (userData.axis) {
             case 'x':
-                if (userData.direction > 0) {
-                    // 右面を移動：左面は固定
-                    newMax.x = Math.max(initialMin.x + minSize, newFaceCenter.x);
-                } else {
-                    // 左面を移動：右面は固定
-                    newMin.x = Math.min(initialMax.x - minSize, newFaceCenter.x);
-                }
+                axisMovement = localMovement.x * userData.direction;
                 break;
             case 'y':
-                if (userData.direction > 0) {
-                    // 上面を移動：下面は固定
-                    newMax.y = Math.max(initialMin.y + minSize, newFaceCenter.y);
-                } else {
-                    // 下面を移動：上面は固定
-                    newMin.y = Math.min(initialMax.y - minSize, newFaceCenter.y);
-                }
+                axisMovement = localMovement.y * userData.direction;
                 break;
             case 'z':
-                if (userData.direction > 0) {
-                    // 奥面を移動：手前面は固定
-                    newMax.z = Math.max(initialMin.z + minSize, newFaceCenter.z);
-                } else {
-                    // 手前面を移動：奥面は固定
-                    newMin.z = Math.min(initialMax.z - minSize, newFaceCenter.z);
-                }
+                axisMovement = localMovement.z * userData.direction;
                 break;
         }
         
-        // 新しいサイズと中心を計算
-        const newSize = new THREE.Vector3(
-            newMax.x - newMin.x,
-            newMax.y - newMin.y,
-            newMax.z - newMin.z
-        );
-        const newCenter = new THREE.Vector3(
-            (newMin.x + newMax.x) / 2,
-            (newMin.y + newMax.y) / 2,
-            (newMin.z + newMax.z) / 2
-        );
+        // 新しいローカルサイズを計算
+        const newLocalSize = this.initialLocalSize.clone();
+        const minSize = 0.1;
+        
+        switch (userData.axis) {
+            case 'x':
+                newLocalSize.x = Math.max(minSize, newLocalSize.x + axisMovement);
+                break;
+            case 'y':
+                newLocalSize.y = Math.max(minSize, newLocalSize.y + axisMovement);
+                break;
+            case 'z':
+                newLocalSize.z = Math.max(minSize, newLocalSize.z + axisMovement);
+                break;
+        }
+        
+        // 対面を固定するため、中心位置をオフセット
+        // サイズの変化量の半分だけ中心を移動
+        const sizeDelta = new THREE.Vector3().subVectors(newLocalSize, this.initialLocalSize);
+        const localCenterOffset = new THREE.Vector3();
+        switch (userData.axis) {
+            case 'x':
+                localCenterOffset.x = sizeDelta.x * 0.5 * userData.direction;
+                break;
+            case 'y':
+                localCenterOffset.y = sizeDelta.y * 0.5 * userData.direction;
+                break;
+            case 'z':
+                localCenterOffset.z = sizeDelta.z * 0.5 * userData.direction;
+                break;
+        }
+        
+        // 中心オフセットをワールド座標に変換
+        const worldCenterOffset = localCenterOffset.applyQuaternion(boxQuaternion);
+        const newCenter = boxCenter.clone().add(worldCenterOffset);
         
         // 箱のジオメトリを更新
-        this.updateBoxSizeGeometry(newSize, newCenter);
+        this.updateBoxSizeGeometry(newLocalSize, newCenter);
         
         console.log('面変形:', {
             axis: userData.axis,
             direction: userData.direction,
-            deltaX: deltaX,
-            deltaY: deltaY,
-            worldMovement: worldMovement,
-            newFaceCenter: newFaceCenter,
-            newCenter: newCenter,
-            newSize: newSize
+            axisMovement: axisMovement,
+            newLocalSize: newLocalSize,
+            newCenter: newCenter
         });
     }
 
@@ -1879,10 +2266,12 @@ class TrimBoxManipulator {
     }
 
     updateCornerPosition(userData, deltaX, deltaY) {
-        // 頂点操作：対角頂点を基点としたバウンディングボックス変形
+        // 頂点操作：対角頂点を基点としたバウンディングボックス変形（ローカル座標系で処理）
         
-        const initialMin = this.initialBoxBounds.min.clone();
-        const initialMax = this.initialBoxBounds.max.clone();
+        // ローカル座標系でのサイズを取得
+        const localHalfSize = this.initialLocalSize.clone().multiplyScalar(0.5);
+        const boxCenter = this.initialBoxCenter.clone();
+        const boxQuaternion = this.initialBoxQuaternion.clone();
         
         // 選択された頂点の情報を解析
         const cornerParts = userData.corner.split('-');
@@ -1890,23 +2279,23 @@ class TrimBoxManipulator {
         const yType = cornerParts[1]; // 'max' or 'min'
         const zType = cornerParts[2]; // 'max' or 'min'
         
-        // 対角頂点（固定点）の座標を取得
-        const fixedCorner = new THREE.Vector3(
-            xType === 'max' ? initialMin.x : initialMax.x,
-            yType === 'max' ? initialMin.y : initialMax.y,
-            zType === 'max' ? initialMin.z : initialMax.z
+        // 選択された頂点のローカル座標
+        const xSign = xType === 'max' ? 1 : -1;
+        const ySign = yType === 'max' ? 1 : -1;
+        const zSign = zType === 'max' ? 1 : -1;
+        
+        const localSelectedCorner = new THREE.Vector3(
+            xSign * localHalfSize.x,
+            ySign * localHalfSize.y,
+            zSign * localHalfSize.z
         );
         
-        // 現在選択されている頂点の初期位置
-        const initialSelectedCorner = new THREE.Vector3(
-            xType === 'max' ? initialMax.x : initialMin.x,
-            yType === 'max' ? initialMax.y : initialMin.y,
-            zType === 'max' ? initialMax.z : initialMin.z
-        );
+        // ワールド座標に変換
+        const worldSelectedCorner = localSelectedCorner.clone().applyQuaternion(boxQuaternion).add(boxCenter);
         
         // カメラのビュー平面でのマウス移動を3D空間の移動に変換
         const camera = this.camera;
-        const distance = camera.position.distanceTo(initialSelectedCorner);
+        const distance = camera.position.distanceTo(worldSelectedCorner);
         
         // カメラの右方向と上方向ベクトル
         const cameraRight = new THREE.Vector3();
@@ -1920,7 +2309,7 @@ class TrimBoxManipulator {
         const viewportWidth = viewportHeight * camera.aspect;
         
         // マウス移動量をワールド座標での移動量に変換（感度調整）
-        const sensitivity = 0.15; // 感度調整係数（小さいほど動きが小さい）
+        const sensitivity = 0.15;
         
         // 3D空間での移動ベクトルを計算
         const worldMovement = new THREE.Vector3();
@@ -1931,12 +2320,10 @@ class TrimBoxManipulator {
             camera.getWorldDirection(cameraForward);
             
             const worldDeltaX = (deltaX * sensitivity) * viewportWidth;
-            const worldDeltaZ = (deltaY * sensitivity) * viewportHeight; // Y軸の移動をZ軸に変換
+            const worldDeltaZ = (deltaY * sensitivity) * viewportHeight;
             
             worldMovement.addScaledVector(cameraRight, worldDeltaX);
             worldMovement.addScaledVector(cameraForward, worldDeltaZ);
-            
-            console.log('頂点Z軸移動:', { deltaX, deltaY, worldDeltaX, worldDeltaZ });
         } else {
             // 通常のXY軸移動
             const worldDeltaX = (deltaX * sensitivity) * viewportWidth;
@@ -1944,75 +2331,45 @@ class TrimBoxManipulator {
             
             worldMovement.addScaledVector(cameraRight, worldDeltaX);
             worldMovement.addScaledVector(cameraUp, worldDeltaY);
-            
-            console.log('頂点XY軸移動:', { deltaX, deltaY, worldDeltaX, worldDeltaY });
         }
         
-        // 新しい選択頂点の位置を計算
-        const newSelectedCorner = initialSelectedCorner.clone().add(worldMovement);
+        // ワールド移動量をボックスのローカル座標系に変換
+        const inverseQuaternion = boxQuaternion.clone().invert();
+        const localMovement = worldMovement.clone().applyQuaternion(inverseQuaternion);
         
-        // バウンディングボックスの新しいmin/maxを計算
-        const newMin = new THREE.Vector3(
-            Math.min(fixedCorner.x, newSelectedCorner.x),
-            Math.min(fixedCorner.y, newSelectedCorner.y),
-            Math.min(fixedCorner.z, newSelectedCorner.z)
-        );
-        
-        const newMax = new THREE.Vector3(
-            Math.max(fixedCorner.x, newSelectedCorner.x),
-            Math.max(fixedCorner.y, newSelectedCorner.y),
-            Math.max(fixedCorner.z, newSelectedCorner.z)
-        );
-        
-        // 最小サイズ制限
+        // 新しいローカルサイズを計算
+        const newLocalSize = this.initialLocalSize.clone();
         const minSize = 0.1;
-        if (newMax.x - newMin.x < minSize) {
-            if (xType === 'max') {
-                newMax.x = newMin.x + minSize;
-            } else {
-                newMin.x = newMax.x - minSize;
-            }
-        }
-        if (newMax.y - newMin.y < minSize) {
-            if (yType === 'max') {
-                newMax.y = newMin.y + minSize;
-            } else {
-                newMin.y = newMax.y - minSize;
-            }
-        }
-        if (newMax.z - newMin.z < minSize) {
-            if (zType === 'max') {
-                newMax.z = newMin.z + minSize;
-            } else {
-                newMin.z = newMax.z - minSize;
-            }
-        }
         
-        // 新しいサイズと中心を計算
-        const newSize = new THREE.Vector3(
-            newMax.x - newMin.x,
-            newMax.y - newMin.y,
-            newMax.z - newMin.z
+        // 各軸の移動量を適用（符号に応じてサイズを変更）
+        const xMovement = localMovement.x * xSign;
+        const yMovement = localMovement.y * ySign;
+        const zMovement = localMovement.z * zSign;
+        
+        newLocalSize.x = Math.max(minSize, newLocalSize.x + xMovement);
+        newLocalSize.y = Math.max(minSize, newLocalSize.y + yMovement);
+        newLocalSize.z = Math.max(minSize, newLocalSize.z + zMovement);
+        
+        // 対角頂点を固定するため、中心位置をオフセット
+        const sizeDelta = new THREE.Vector3().subVectors(newLocalSize, this.initialLocalSize);
+        const localCenterOffset = new THREE.Vector3(
+            sizeDelta.x * 0.5 * xSign,
+            sizeDelta.y * 0.5 * ySign,
+            sizeDelta.z * 0.5 * zSign
         );
         
-        const newCenter = new THREE.Vector3(
-            (newMin.x + newMax.x) / 2,
-            (newMin.y + newMax.y) / 2,
-            (newMin.z + newMax.z) / 2
-        );
+        // 中心オフセットをワールド座標に変換
+        const worldCenterOffset = localCenterOffset.applyQuaternion(boxQuaternion);
+        const newCenter = boxCenter.clone().add(worldCenterOffset);
         
         // 箱のジオメトリを更新
-        this.updateBoxSizeGeometry(newSize, newCenter);
+        this.updateBoxSizeGeometry(newLocalSize, newCenter);
         
         console.log('バウンディングボックス変形:', {
             corner: userData.corner,
-            deltaX: deltaX,
-            deltaY: deltaY,
-            worldMovement: worldMovement,
-            fixedCorner: fixedCorner,
-            newSelectedCorner: newSelectedCorner,
-            newCenter: newCenter,
-            newSize: newSize
+            localMovement: localMovement,
+            newLocalSize: newLocalSize,
+            newCenter: newCenter
         });
     }
 
@@ -2031,7 +2388,7 @@ class TrimBoxManipulator {
         const boxCenter = this.trimBox.position.clone();
         const boxRotation = this.trimBox.rotation.clone();
         
-        // 頂点ハンドルの位置を更新
+        // 頂点ハンドルの位置と向きを更新
         this.cornerHandles.forEach(handle => {
             const userData = handle.userData;
             const parts = userData.corner.split('-');
@@ -2043,6 +2400,9 @@ class TrimBoxManipulator {
             localPos.applyEuler(boxRotation);
             localPos.add(boxCenter);
             handle.position.copy(localPos);
+            
+            // コーナーハンドルの向きもボックスの回転に追従させる
+            handle.rotation.copy(boxRotation);
         });
         
         // 面ハンドルの位置を更新（選択されている場合のみ表示）
@@ -2067,10 +2427,8 @@ class TrimBoxManipulator {
             localPos.add(boxCenter);
             handle.position.copy(localPos);
             
-            // 矢印の向きも更新
-            handle.rotation.set(0, 0, 0);
-            this.orientArrowHandle(handle, userData);
-            handle.rotation.y += boxRotation.y;
+            // 矢印の向きを更新（ボックスの回転を考慮）
+            this.orientArrowHandleWithBoxRotation(handle, userData, boxRotation);
         });
         
         // エッジハンドル（円の4分の1）の位置を更新（箱の高さ中央）
@@ -2145,6 +2503,88 @@ class TrimBoxManipulator {
                 axis.position.copy(this.edgeHandles[index].position);
             }
         });
+        
+        // 軸ハンドルの位置を更新
+        if (this.axisHandles.length > 0) {
+            // 追従するハンドルの位置を取得
+            const basePosition = this.getFollowHandlePosition();
+            if (!basePosition) {
+                return; // ハンドルが見つからない場合はスキップ
+            }
+            
+            const offsetY = boxSize.y + 0.5; // 箱の上面から0.5単位上に配置
+            
+            this.axisHandles.forEach((handle, index) => {
+                const userData = handle.userData;
+                if (!userData || userData.type !== 'axis') return;
+                
+                // 位置オフセットを取得
+                const positionOffset = this.axisHandlePositions[userData.axis] || { x: 0, y: 0, z: 0 };
+                
+                // Y軸の矢印は特別処理：ボックスの上面に追従しつつ、始点がずれないようにする
+                // X軸・Z軸の矢印は従来通りoffsetYを適用
+                let localPosition;
+                if (userData.axis === 'y') {
+                    // Y軸矢印：ボックスの上面に追従
+                    // ボックスの上面までのオフセット（ローカル座標系で計算、回転を適用）
+                    const topOffset = new THREE.Vector3(0, boxSize.y, 0);
+                    topOffset.applyEuler(boxRotation);
+                    
+                    // positionOffsetはワールド座標系で追加（回転させない）
+                    const worldOffset = new THREE.Vector3(
+                        positionOffset.x,
+                        positionOffset.y,
+                        positionOffset.z
+                    );
+                    
+                    handle.position.copy(basePosition.clone().add(topOffset).add(worldOffset));
+                } else {
+                    // X軸・Z軸矢印：従来通りの処理
+                    localPosition = new THREE.Vector3(
+                        positionOffset.x,
+                        offsetY + positionOffset.y,
+                        positionOffset.z
+                    );
+                    // 箱の回転を考慮して位置を変換
+                    localPosition.applyEuler(boxRotation);
+                    localPosition.add(basePosition);
+                    handle.position.copy(localPosition);
+                }
+                
+                // 矢印の向きを更新
+                handle.rotation.set(0, 0, 0);
+                let axisDirection = new THREE.Vector3();
+                switch (userData.axis) {
+                    case 'x':
+                        axisDirection.set(1, 0, 0);
+                        break;
+                    case 'y':
+                        axisDirection.set(0, 1, 0);
+                        break;
+                    case 'z':
+                        axisDirection.set(0, 0, 1);
+                        break;
+                }
+                
+                axisDirection.applyEuler(boxRotation);
+                handle.lookAt(handle.position.clone().add(axisDirection));
+                
+                // arrow_corn_parallelMovementの向きを調整
+                if (userData.axis === 'x') {
+                    handle.rotateY(Math.PI / 2);
+                } else if (userData.axis === 'z') {
+                    handle.rotateX(-Math.PI / 2);
+                }
+                
+                // 回転オフセットを適用
+                const rotationOffset = this.axisHandleRotations[userData.axis];
+                if (rotationOffset) {
+                    handle.rotateX(rotationOffset.x * Math.PI / 180);
+                    handle.rotateY(rotationOffset.y * Math.PI / 180);
+                    handle.rotateZ(rotationOffset.z * Math.PI / 180);
+                }
+            });
+        }
     }
 
     updateBoxPosition(deltaX, deltaY) {
@@ -2171,8 +2611,51 @@ class TrimBoxManipulator {
         
         // 3D空間での移動ベクトルを計算
         const worldMovement = new THREE.Vector3();
-        worldMovement.addScaledVector(cameraRight, worldDeltaX);
-        worldMovement.addScaledVector(cameraUp, worldDeltaY);
+        
+        // 軸制約が有効な場合
+        if (this.activeAxis) {
+            // 箱のローカル座標系での軸方向を取得
+            const boxRotation = this.trimBox.rotation;
+            let axisDirection = new THREE.Vector3();
+            
+            switch (this.activeAxis) {
+                case 'x':
+                    axisDirection.set(1, 0, 0);
+                    break;
+                case 'y':
+                    axisDirection.set(0, 1, 0);
+                    break;
+                case 'z':
+                    axisDirection.set(0, 0, 1);
+                    break;
+            }
+            
+            // 箱の回転を考慮してワールド座標系の軸方向に変換
+            axisDirection.applyEuler(boxRotation);
+            
+            // カメラの右方向と上方向を軸方向に投影
+            const rightProjection = cameraRight.dot(axisDirection);
+            const upProjection = cameraUp.dot(axisDirection);
+            
+            // 投影された移動量を計算
+            const axisMovement = (worldDeltaX * rightProjection + worldDeltaY * upProjection);
+            
+            // 軸方向のみに移動
+            worldMovement.addScaledVector(axisDirection, axisMovement);
+            
+            console.log('軸制約移動:', {
+                axis: this.activeAxis,
+                axisDirection: axisDirection.toArray(),
+                rightProjection,
+                upProjection,
+                axisMovement,
+                worldMovement: worldMovement.toArray()
+            });
+        } else {
+            // 自由移動（従来通り）
+            worldMovement.addScaledVector(cameraRight, worldDeltaX);
+            worldMovement.addScaledVector(cameraUp, worldDeltaY);
+        }
         
         // 新しい箱の位置を設定
         const newPosition = this.initialBoxPosition.clone().add(worldMovement);
@@ -2189,6 +2672,7 @@ class TrimBoxManipulator {
         console.log('箱移動:', { 
             deltaX, deltaY,
             worldDeltaX, worldDeltaY,
+            activeAxis: this.activeAxis,
             newPosition: newPosition.toArray()
         });
     }
@@ -2671,7 +3155,7 @@ class TrimBoxManipulator {
         }
         
         // 全てのハンドルをクリア
-        [...this.handles, ...this.faceHandles, ...this.edgeHandles, ...this.cornerHandles].forEach(handle => {
+        [...this.handles, ...this.faceHandles, ...this.edgeHandles, ...this.cornerHandles, ...this.axisHandles].forEach(handle => {
             this.scene.remove(handle);
             
             // Groupの場合は子要素もクリア
@@ -2700,11 +3184,13 @@ class TrimBoxManipulator {
         this.faceHandles = [];
         this.edgeHandles = [];
         this.cornerHandles = [];
+        this.axisHandles = [];
         this.rotationAxes = [];
         this.initialEdgeRotations = []; // 初期回転もクリア
         this.activeHandle = null; // アクティブなハンドルをクリア
         this.hoveredHandle = null; // ホバー中のハンドルをクリア
         this.hoveredFaceHandle = null; // ホバー中の面ハンドルをクリア
+        this.activeAxis = null; // 軸制約をクリア
         
         console.log('=== TrimBoxManipulator.clear() 完了 ===');
         
@@ -2921,6 +3407,125 @@ class TrimBoxManipulator {
         });
         
         console.log('arrow_corn回転設定:', faceKey, axis, normalizedDegrees);
+    }
+
+    setAxisHandleRotation(axis, rotationAxis, degrees) {
+        // 平行移動の矢印の回転オフセットを設定（度単位）
+        // axis: 'x', 'y', 'z'（どの軸の矢印か）
+        // rotationAxis: 'x', 'y', 'z'（どの軸で回転するか）
+        // degrees: 回転角度（度単位）
+        
+        if (!this.axisHandleRotations[axis]) {
+            this.axisHandleRotations[axis] = { x: 0, y: 0, z: 0 };
+        }
+        
+        if (rotationAxis !== 'x' && rotationAxis !== 'y' && rotationAxis !== 'z') {
+            console.error('無効な回転軸:', rotationAxis);
+            return;
+        }
+        
+        // 角度を-180～180度の範囲に正規化
+        let normalizedDegrees = degrees % 360;
+        if (normalizedDegrees > 180) {
+            normalizedDegrees -= 360;
+        } else if (normalizedDegrees < -180) {
+            normalizedDegrees += 360;
+        }
+        
+        this.axisHandleRotations[axis][rotationAxis] = normalizedDegrees;
+        
+        // 既存の軸ハンドルに回転を適用（再作成）
+        if (this.trimBox) {
+            this.createAxisHandles();
+            this.updateHandlePositions();
+        }
+        
+        console.log('軸ハンドル回転設定:', axis, rotationAxis, normalizedDegrees);
+    }
+
+    setFollowHandle(type, index) {
+        // 平行移動の矢印が追従するハンドルを設定
+        // type: 'edge' または 'corner'
+        // index: エッジハンドルの場合0-3、頂点ハンドルの場合corner名（例: 'max-max-max'）
+        
+        if (type !== 'edge' && type !== 'corner') {
+            console.error('無効なハンドルタイプ:', type);
+            return;
+        }
+        
+        this.followHandleType = type;
+        this.followHandleIndex = index;
+        
+        // 既存の軸ハンドルを再作成して位置を更新
+        if (this.trimBox) {
+            this.createAxisHandles();
+            this.updateHandlePositions();
+        }
+        
+        console.log('追従ハンドル設定:', type, index);
+    }
+
+    setAxisHandlePosition(axis, positionAxis, value) {
+        // 平行移動の矢印の位置オフセットを設定
+        // axis: 'x', 'y', 'z'（どの軸の矢印か）
+        // positionAxis: 'x', 'y', 'z'（どの方向に移動するか）
+        // value: 位置オフセット値
+        
+        if (!this.axisHandlePositions[axis]) {
+            this.axisHandlePositions[axis] = { x: 0, y: 0, z: 0 };
+        }
+        
+        if (positionAxis !== 'x' && positionAxis !== 'y' && positionAxis !== 'z') {
+            console.error('無効な位置軸:', positionAxis);
+            return;
+        }
+        
+        this.axisHandlePositions[axis][positionAxis] = value;
+        
+        // 既存の軸ハンドルの位置を更新
+        if (this.trimBox) {
+            this.updateHandlePositions();
+        }
+        
+        console.log('軸ハンドル位置設定:', axis, positionAxis, value);
+    }
+
+    updateAxisHandleAppearance() {
+        // 平行移動の矢印の見た目を更新（選択状態とホバー状態に応じて色と透明度を変更）
+        this.axisHandles.forEach(handle => {
+            if (!handle || !handle.userData || handle.userData.type !== 'axis') return;
+            
+            const isSelected = this.activeAxis === handle.userData.axis;
+            const isHovered = this.hoveredAxisHandle === handle;
+            const selectedColor = 0x00dfff; // 面選択時の矢印と同じ水色
+            
+            // arrowGroupの子要素から矢印メッシュを探す
+            handle.traverse((child) => {
+                if (child.isMesh && child.material && !child.userData.isAxisHandleClickable) {
+                    // クリック可能領域ではないメッシュのみ更新
+                    // レンダリング順序と深度テストの設定を維持
+                    child.material.depthTest = false;
+                    child.material.depthWrite = false;
+                    child.renderOrder = 10000;
+                    
+                    if (isSelected) {
+                        // 選択時：水色（面選択時の矢印と同じ色）、不透明度100%
+                        child.material.color.setHex(selectedColor);
+                        child.material.opacity = 1.0;
+                    } else if (isHovered) {
+                        // ホバー時：白、不透明度100%
+                        child.material.color.setHex(0xffffff);
+                        child.material.opacity = 1.0;
+                    } else {
+                        // 非選択時：白、透明度30%
+                        child.material.color.setHex(0xffffff);
+                        child.material.opacity = 0.3;
+                    }
+                    child.material.transparent = true;
+                    child.material.needsUpdate = true;
+                }
+            });
+        });
     }
 
     setArrowCornPositionOffset(offset) {

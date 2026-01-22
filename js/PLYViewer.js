@@ -271,7 +271,115 @@ class PLYViewer {
             });
         }
 
+        // arrow_corn専用の面の矢印の位置調整スライダー
+        const faceArrowInnerOffsetSlider = document.getElementById('faceArrowInnerOffsetSlider');
+        const faceArrowInnerOffsetInput = document.getElementById('faceArrowInnerOffsetInput');
+        if (faceArrowInnerOffsetSlider && faceArrowInnerOffsetInput) {
+            // スライダー変更時
+            faceArrowInnerOffsetSlider.addEventListener('input', (e) => {
+                const value = parseFloat(e.target.value);
+                faceArrowInnerOffsetInput.value = value.toFixed(1);
+                this.setFaceArrowInnerOffset(value);
+            });
+            
+            // 数値入力変更時
+            faceArrowInnerOffsetInput.addEventListener('input', (e) => {
+                let value = parseFloat(e.target.value);
+                if (isNaN(value)) return;
+                // 範囲制限
+                value = Math.max(0, Math.min(2, value));
+                faceArrowInnerOffsetSlider.value = value;
+                e.target.value = value.toFixed(1);
+                this.setFaceArrowInnerOffset(value);
+            });
+            
+            // 数値入力フォーカスアウト時（確定）
+            faceArrowInnerOffsetInput.addEventListener('blur', (e) => {
+                let value = parseFloat(e.target.value);
+                if (isNaN(value)) {
+                    value = parseFloat(faceArrowInnerOffsetSlider.value);
+                }
+                value = Math.max(0, Math.min(2, value));
+                faceArrowInnerOffsetSlider.value = value;
+                e.target.value = value.toFixed(1);
+                this.setFaceArrowInnerOffset(value);
+            });
+            
+            // 初期値を設定
+            if (this.trimBoxManipulator) {
+                this.setFaceArrowInnerOffset(1.1);
+            }
+        }
 
+        // 平行移動の矢印の位置調整UIのイベントリスナー
+        const setupAxisHandlePositionListener = (axis, positionAxis, sliderId, inputId) => {
+            const slider = document.getElementById(sliderId);
+            const input = document.getElementById(inputId);
+            if (slider && input) {
+                // スライダー変更時
+                slider.addEventListener('input', (e) => {
+                    const value = parseFloat(e.target.value);
+                    input.value = value.toFixed(2);
+                    if (this.trimBoxManipulator) {
+                        this.trimBoxManipulator.setAxisHandlePosition(axis, positionAxis, value);
+                    }
+                });
+                
+                // 数値入力変更時
+                input.addEventListener('input', (e) => {
+                    let value = parseFloat(e.target.value);
+                    if (isNaN(value)) return;
+                    // 範囲制限
+                    value = Math.max(-2, Math.min(2, value));
+                    slider.value = value;
+                    e.target.value = value.toFixed(2);
+                    if (this.trimBoxManipulator) {
+                        this.trimBoxManipulator.setAxisHandlePosition(axis, positionAxis, value);
+                    }
+                });
+                
+                // 数値入力フォーカスアウト時（確定）
+                input.addEventListener('blur', (e) => {
+                    let value = parseFloat(e.target.value);
+                    if (isNaN(value)) {
+                        value = parseFloat(slider.value);
+                    }
+                    value = Math.max(-2, Math.min(2, value));
+                    slider.value = value;
+                    e.target.value = value.toFixed(2);
+                    if (this.trimBoxManipulator) {
+                        this.trimBoxManipulator.setAxisHandlePosition(axis, positionAxis, value);
+                    }
+                });
+            }
+        };
+
+        // X軸矢印の位置
+        setupAxisHandlePositionListener('x', 'x', 'axisHandlePositionX_X', 'axisHandlePositionX_X_Input');
+        setupAxisHandlePositionListener('x', 'y', 'axisHandlePositionX_Y', 'axisHandlePositionX_Y_Input');
+        setupAxisHandlePositionListener('x', 'z', 'axisHandlePositionX_Z', 'axisHandlePositionX_Z_Input');
+
+        // Y軸矢印の位置
+        setupAxisHandlePositionListener('y', 'x', 'axisHandlePositionY_X', 'axisHandlePositionY_X_Input');
+        setupAxisHandlePositionListener('y', 'y', 'axisHandlePositionY_Y', 'axisHandlePositionY_Y_Input');
+        setupAxisHandlePositionListener('y', 'z', 'axisHandlePositionY_Z', 'axisHandlePositionY_Z_Input');
+
+        // Z軸矢印の位置
+        setupAxisHandlePositionListener('z', 'x', 'axisHandlePositionZ_X', 'axisHandlePositionZ_X_Input');
+        setupAxisHandlePositionListener('z', 'y', 'axisHandlePositionZ_Y', 'axisHandlePositionZ_Y_Input');
+        setupAxisHandlePositionListener('z', 'z', 'axisHandlePositionZ_Z', 'axisHandlePositionZ_Z_Input');
+
+        // 平行移動の矢印の追従ハンドル選択
+        const axisHandleFollowHandleSelect = document.getElementById('axisHandleFollowHandleSelect');
+        if (axisHandleFollowHandleSelect) {
+            axisHandleFollowHandleSelect.addEventListener('change', (e) => {
+                const value = e.target.value;
+                const [type, index] = value.split(':');
+                if (this.trimBoxManipulator) {
+                    this.trimBoxManipulator.setFollowHandle(type, type === 'edge' ? parseInt(index) : index);
+                }
+            });
+        }
 
         if (completeSliceBtn) {
             completeSliceBtn.addEventListener('click', () => this.executeTrim());
@@ -1037,7 +1145,21 @@ class PLYViewer {
                     const clickablePanel = document.getElementById('arrowCornClickablePanel');
                     if (clickablePanel) {
                         clickablePanel.style.display = currentType === 'arrow_corn' ? 'flex' : 'none';
-                        
+                    }
+                    
+                    // arrow_corn専用の面の矢印の位置調整パネルの表示/非表示を切り替え
+                    const faceArrowInnerOffsetPanel = document.getElementById('faceArrowInnerOffsetPanel');
+                    if (faceArrowInnerOffsetPanel) {
+                        faceArrowInnerOffsetPanel.style.display = currentType === 'arrow_corn' ? 'flex' : 'none';
+                    }
+                    
+                    // 平行移動の矢印の追従ハンドル選択パネルの表示/非表示を切り替え
+                    const axisHandleFollowHandlePanel = document.getElementById('axisHandleFollowHandlePanel');
+                    if (axisHandleFollowHandlePanel) {
+                        axisHandleFollowHandlePanel.style.display = currentType === 'arrow_corn' ? 'flex' : 'none';
+                    }
+                    
+                    if (currentType === 'arrow_corn') {
                         // arrow_cornの場合、現在の表示状態をUIに反映
                         if (currentType === 'arrow_corn') {
                             const toggle = document.getElementById('toggleArrowCornClickable');
@@ -2298,6 +2420,28 @@ class PLYViewer {
             clickablePanel.style.display = type === 'arrow_corn' ? 'flex' : 'none';
         }
         
+        // arrow_corn専用の面の矢印の位置調整パネルの表示/非表示を切り替え
+        const faceArrowInnerOffsetPanel = document.getElementById('faceArrowInnerOffsetPanel');
+        if (faceArrowInnerOffsetPanel) {
+            faceArrowInnerOffsetPanel.style.display = type === 'arrow_corn' ? 'flex' : 'none';
+            
+            // arrow_cornが選択された場合、デフォルト値を適用
+            if (type === 'arrow_corn') {
+                const slider = document.getElementById('faceArrowInnerOffsetSlider');
+                const input = document.getElementById('faceArrowInnerOffsetInput');
+                if (slider && input) {
+                    const defaultValue = parseFloat(slider.value) || 1.3;
+                    this.setFaceArrowInnerOffset(defaultValue);
+                }
+            }
+        }
+        
+        // 平行移動の矢印の追従ハンドル選択パネルの表示/非表示を切り替え
+        const axisHandleFollowHandlePanel = document.getElementById('axisHandleFollowHandlePanel');
+        if (axisHandleFollowHandlePanel) {
+            axisHandleFollowHandlePanel.style.display = type === 'arrow_corn' ? 'flex' : 'none';
+        }
+        
         console.log('矢印タイプ変更:', type);
     }
 
@@ -2320,6 +2464,17 @@ class PLYViewer {
         }
         
         console.log('arrow_cornクリック可能領域表示状態:', visible);
+    }
+
+    setFaceArrowInnerOffset(innerOffset) {
+        // arrow_corn専用の面の矢印を内側に移動させる
+        // innerOffset: 0～2.0の範囲で、内側への移動量
+        // arrowCornPositionOffset = 1.0 - innerOffset として、内側に移動させる
+        if (!this.trimBoxManipulator) {
+            return;
+        }
+        const offset = 1.0 - innerOffset; // デフォルト1.0から内側に移動
+        this.trimBoxManipulator.setArrowCornPositionOffset(offset);
     }
 
     setupOrientationEventListeners() {

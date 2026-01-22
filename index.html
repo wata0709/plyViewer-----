@@ -176,6 +176,107 @@
                   <span class="toggle-slider"></span>
                 </label>
               </div>
+              <!-- arrow_corn専用の面の矢印の位置調整（arrow_corn選択時のみ表示） -->
+              <div id="faceArrowInnerOffsetPanel" class="option-item" style="display: none;">
+                <div class="option-label">arrow_corn 面の矢印の位置調整</div>
+                <div class="slider-control">
+                  <div class="slider-input-group">
+                    <input type="range" id="faceArrowInnerOffsetSlider" class="option-slider" min="0" max="2" step="0.1" value="1.1" />
+                    <input type="number" id="faceArrowInnerOffsetInput" class="option-number-input" min="0" max="2" step="0.1" value="1.1" />
+                  </div>
+                  <div class="slider-description" style="color: #a5a8b0; font-size: 10px; margin-top: 4px;">
+                    内側に移動（すべての矢印を同じ距離だけ内側に移動）
+                  </div>
+                </div>
+              </div>
+              <!-- 平行移動の矢印の向き調整 -->
+              <div id="axisHandleFollowHandlePanel" class="option-item" style="display: none;">
+                <div class="option-label">平行移動の矢印の追従ハンドル</div>
+                <select id="axisHandleFollowHandleSelect" class="option-select">
+                  <optgroup label="エッジハンドル">
+                    <option value="edge:0">右奥</option>
+                    <option value="edge:1">右手前</option>
+                    <option value="edge:2">左奥</option>
+                    <option value="edge:3" selected>左手前</option>
+                  </optgroup>
+                  <optgroup label="頂点ハンドル">
+                    <option value="corner:max-max-max">右上奥</option>
+                    <option value="corner:max-max-min">右上前</option>
+                    <option value="corner:max-min-max">右下奥</option>
+                    <option value="corner:max-min-min">右下前</option>
+                    <option value="corner:min-max-max">左上奥</option>
+                    <option value="corner:min-max-min">左上前</option>
+                    <option value="corner:min-min-max">左下奥</option>
+                    <option value="corner:min-min-min">左下前</option>
+                  </optgroup>
+                </select>
+              </div>
+              <div class="option-item">
+                <div class="option-label">平行移動の矢印の位置調整</div>
+              </div>
+              <!-- X軸矢印の位置 -->
+              <div class="option-item">
+                <div class="option-label">X軸矢印の位置</div>
+                <div style="display: flex; flex-direction: column; gap: 4px; width: 100%;">
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="color: #a5a8b0; font-size: 11px; min-width: 20px;">X:</span>
+                    <input type="range" id="axisHandlePositionX_X" class="option-slider" min="-2" max="2" value="-0.48" step="0.01" />
+                    <input type="number" id="axisHandlePositionX_X_Input" class="option-input" min="-2" max="2" value="-0.48" step="0.01" style="width: 60px; padding: 2px 4px; background: #2c2d30; border: 1px solid #3d3e42; border-radius: 4px; color: #edeff2; font-size: 11px;" />
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="color: #a5a8b0; font-size: 11px; min-width: 20px;">Y:</span>
+                    <input type="range" id="axisHandlePositionX_Y" class="option-slider" min="-2" max="2" value="-0.50" step="0.01" />
+                    <input type="number" id="axisHandlePositionX_Y_Input" class="option-input" min="-2" max="2" value="-0.50" step="0.01" style="width: 60px; padding: 2px 4px; background: #2c2d30; border: 1px solid #3d3e42; border-radius: 4px; color: #edeff2; font-size: 11px;" />
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="color: #a5a8b0; font-size: 11px; min-width: 20px;">Z:</span>
+                    <input type="range" id="axisHandlePositionX_Z" class="option-slider" min="-2" max="2" value="0.57" step="0.01" />
+                    <input type="number" id="axisHandlePositionX_Z_Input" class="option-input" min="-2" max="2" value="0.57" step="0.01" style="width: 60px; padding: 2px 4px; background: #2c2d30; border: 1px solid #3d3e42; border-radius: 4px; color: #edeff2; font-size: 11px;" />
+                  </div>
+                </div>
+              </div>
+              <!-- Y軸矢印の位置 -->
+              <div class="option-item">
+                <div class="option-label">Y軸矢印の位置</div>
+                <div style="display: flex; flex-direction: column; gap: 4px; width: 100%;">
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="color: #a5a8b0; font-size: 11px; min-width: 20px;">X:</span>
+                    <input type="range" id="axisHandlePositionY_X" class="option-slider" min="-2" max="2" value="0.57" step="0.01" />
+                    <input type="number" id="axisHandlePositionY_X_Input" class="option-input" min="-2" max="2" value="0.57" step="0.01" style="width: 60px; padding: 2px 4px; background: #2c2d30; border: 1px solid #3d3e42; border-radius: 4px; color: #edeff2; font-size: 11px;" />
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="color: #a5a8b0; font-size: 11px; min-width: 20px;">Y:</span>
+                    <input type="range" id="axisHandlePositionY_Y" class="option-slider" min="-2" max="10" value="0.50" step="0.01" />
+                    <input type="number" id="axisHandlePositionY_Y_Input" class="option-input" min="-2" max="10" value="0.50" step="0.01" style="width: 60px; padding: 2px 4px; background: #2c2d30; border: 1px solid #3d3e42; border-radius: 4px; color: #edeff2; font-size: 11px;" />
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="color: #a5a8b0; font-size: 11px; min-width: 20px;">Z:</span>
+                    <input type="range" id="axisHandlePositionY_Z" class="option-slider" min="-2" max="2" value="0" step="0.01" />
+                    <input type="number" id="axisHandlePositionY_Z_Input" class="option-input" min="-2" max="2" value="0" step="0.01" style="width: 60px; padding: 2px 4px; background: #2c2d30; border: 1px solid #3d3e42; border-radius: 4px; color: #edeff2; font-size: 11px;" />
+                  </div>
+                </div>
+              </div>
+              <!-- Z軸矢印の位置 -->
+              <div class="option-item">
+                <div class="option-label">Z軸矢印の位置</div>
+                <div style="display: flex; flex-direction: column; gap: 4px; width: 100%;">
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="color: #a5a8b0; font-size: 11px; min-width: 20px;">X:</span>
+                    <input type="range" id="axisHandlePositionZ_X" class="option-slider" min="-2" max="2" value="0.00" step="0.01" />
+                    <input type="number" id="axisHandlePositionZ_X_Input" class="option-input" min="-2" max="2" value="0.00" step="0.01" style="width: 60px; padding: 2px 4px; background: #2c2d30; border: 1px solid #3d3e42; border-radius: 4px; color: #edeff2; font-size: 11px;" />
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="color: #a5a8b0; font-size: 11px; min-width: 20px;">Y:</span>
+                    <input type="range" id="axisHandlePositionZ_Y" class="option-slider" min="-2" max="2" value="-1.07" step="0.01" />
+                    <input type="number" id="axisHandlePositionZ_Y_Input" class="option-input" min="-2" max="2" value="-1.07" step="0.01" style="width: 60px; padding: 2px 4px; background: #2c2d30; border: 1px solid #3d3e42; border-radius: 4px; color: #edeff2; font-size: 11px;" />
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="color: #a5a8b0; font-size: 11px; min-width: 20px;">Z:</span>
+                    <input type="range" id="axisHandlePositionZ_Z" class="option-slider" min="-2" max="2" value="-0.52" step="0.01" />
+                    <input type="number" id="axisHandlePositionZ_Z_Input" class="option-input" min="-2" max="2" value="-0.52" step="0.01" style="width: 60px; padding: 2px 4px; background: #2c2d30; border: 1px solid #3d3e42; border-radius: 4px; color: #edeff2; font-size: 11px;" />
+                  </div>
+                </div>
+              </div>
               <!-- <div class="option-divider"></div> -->
             </div>
           </div>
