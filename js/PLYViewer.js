@@ -2413,6 +2413,16 @@ class PLYViewer {
         const faceArrowInnerOffsetPanel = document.getElementById('faceArrowInnerOffsetPanel');
         if (faceArrowInnerOffsetPanel) {
             faceArrowInnerOffsetPanel.style.display = type === 'arrow_corn' ? 'flex' : 'none';
+            
+            // arrow_cornが選択された場合、デフォルト値を適用
+            if (type === 'arrow_corn') {
+                const slider = document.getElementById('faceArrowInnerOffsetSlider');
+                const input = document.getElementById('faceArrowInnerOffsetInput');
+                if (slider && input) {
+                    const defaultValue = parseFloat(slider.value) || 1.3;
+                    this.setFaceArrowInnerOffset(defaultValue);
+                }
+            }
         }
         
         console.log('矢印タイプ変更:', type);
